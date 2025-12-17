@@ -74,6 +74,12 @@ const UserMaster = () => {
       return;
     }
 
+    const token = localStorage.getItem("token");
+    if (!token) {
+      swal("Error", "You must login first", "error");
+      return;
+    }
+
     try {
       const { confirmPassword, ...payload } = formData;
 
@@ -82,16 +88,26 @@ const UserMaster = () => {
         {
           method: "POST",
           headers: {
+            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify(payload),
         }
       );
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to add user");
+        if (response.status === 403) {
+          throw new Error("You are not an admin. Contact your administrator.");
+        } else {
+          throw new Error(data.error || "Failed to add user");
+        }
       }
 
       swal("Success", "User added successfully!", "success");
@@ -107,19 +123,43 @@ const UserMaster = () => {
   // EDIT FUNCTIONS
   const handleEditClick = async (user) => {
     try {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        swal(
+          "Error",
+          "No authentication token found. Please login again.",
+          "error"
+        );
+        return;
+      }
+
       // Fetch user details for editing
       const response = await fetch(
-        `http://localhost:5000/api/editusermaster/${user.user_id}`
+        `http://localhost:5000/api/editusermaster/${user.user_id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
       );
-      const userData = await response.json();
 
       if (!response.ok) {
-        throw new Error("Failed to fetch user details");
+        if (response.status === 403) {
+          // Forbidden – user is not admin
+          throw new Error("You are not an admin. Contact your administrator.");
+        } else {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to fetch user details");
+        }
       }
+
+      const userData = await response.json();
 
       setEditingUser(userData);
 
-      // Set form data for editing (don't include password for security)
+      // Set form data for editing
       setFormData({
         emp_id: userData.emp_id,
         name: userData.name,
@@ -139,8 +179,8 @@ const UserMaster = () => {
 
       setShowEditModal(true);
     } catch (err) {
-      console.error(err);
-      swal("Error", "Failed to load user details", "error");
+      console.error("Edit error:", err);
+      swal("Error", err.message || "Failed to load user details", "error");
     }
   };
 
@@ -159,11 +199,22 @@ const UserMaster = () => {
     }
 
     try {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        swal(
+          "Error",
+          "No authentication token found. Please login again.",
+          "error"
+        );
+        return;
+      }
+
       // Remove confirmPassword from payload
       const { confirmPassword, ...payload } = formData;
 
       // If password is empty, remove it from payload (don't update password)
-      if (!payload.password) {
+      if (!payload.password || payload.password.trim() === "") {
         delete payload.password;
       }
 
@@ -172,6 +223,7 @@ const UserMaster = () => {
         {
           method: "PUT",
           headers: {
+            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify(payload),
@@ -181,7 +233,12 @@ const UserMaster = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to update user");
+        if (response.status === 403) {
+          // Forbidden – user is not admin
+          throw new Error("You are not an admin. Contact your administrator.");
+        } else {
+          throw new Error(data.error || "Failed to update user");
+        }
       }
 
       swal("Success", "User updated successfully!", "success");
@@ -206,22 +263,42 @@ const UserMaster = () => {
     }).then(async (willDelete) => {
       if (willDelete) {
         try {
+          const token = localStorage.getItem("token");
+
+          if (!token) {
+            swal(
+              "Error",
+              "No authentication token found. Please login again.",
+              "error"
+            );
+            return;
+          }
+
           const response = await fetch(
             `http://localhost:5000/api/editusermaster/${user.user_id}`,
             {
               method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
             }
           );
 
           if (response.ok) {
             swal("Success", "User deleted successfully!", "success");
             fetchUsers();
+          } else if (response.status === 403) {
+            // Forbidden – user is not admin
+            throw new Error(
+              "You are not an admin. Contact your administrator."
+            );
           } else {
-            throw new Error("Failed to delete user");
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Failed to delete user");
           }
         } catch (err) {
           console.error(err);
-          swal("Error", "Failed to delete user", "error");
+          swal("Error", err.message, "error");
         }
       }
     });

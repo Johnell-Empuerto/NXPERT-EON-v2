@@ -3,6 +3,8 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const cors = require("cors");
+const auth = require("../middleware/auth");
+const isAdmin = require("../middleware/isAdmin");
 
 // Enable CORS only for this route
 router.use(
@@ -15,7 +17,7 @@ router.use(
 
 // POST: Save SMTP settings
 // POST: Save SMTP settings
-router.post("/save-smtp", async (req, res) => {
+router.post("/save-smtp", auth, isAdmin, async (req, res) => {
   let {
     smtpHost,
     smtpPort,

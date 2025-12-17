@@ -2,7 +2,9 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const cors = require("cors");
-const bcrypt = require("bcrypt"); // Add bcrypt
+const bcrypt = require("bcrypt");
+const auth = require("../middleware/auth");
+const isAdmin = require("../middleware/isAdmin");
 
 // Enable CORS for React dev server
 router.use(
@@ -14,7 +16,7 @@ router.use(
 );
 
 // POST - Add new user to UserMaster
-router.post("/", async (req, res) => {
+router.post("/", auth, isAdmin, async (req, res) => {
   const {
     emp_id,
     name,

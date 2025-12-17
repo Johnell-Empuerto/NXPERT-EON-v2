@@ -1,3 +1,5 @@
+const jwt = require("jsonwebtoken");
+
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
@@ -56,10 +58,23 @@ router.post("/", async (req, res) => {
       // Remove sensitive data before sending to client
       const { password: _, ...userWithoutPassword } = user;
 
+      // ✅ CREATE JWT HERE
+      const token = jwt.sign(
+        {
+          user_id: user.user_id,
+          emp_id: user.emp_id,
+          role: user.role,
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: "1d" }
+      );
+
       res.json({
         success: true,
         user: userWithoutPassword,
         message: "Login successful",
+        token, // 👈 SEND TOKEN
+        user: userWithoutPassword, // 👈 USER DATA
       });
     } else {
       res.json({

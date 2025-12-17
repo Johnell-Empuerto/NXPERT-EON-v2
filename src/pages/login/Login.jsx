@@ -69,6 +69,9 @@ const Login = ({ setIsLoggedIn, setUser }) => {
           })
         );
 
+        // **Save the token separately for API calls**
+        localStorage.setItem("token", data.token);
+
         swal("Login Successful", `Welcome, ${data.user.name}!`, "success").then(
           () => {
             navigate("/dashboard");

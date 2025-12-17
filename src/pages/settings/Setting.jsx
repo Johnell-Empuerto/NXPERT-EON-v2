@@ -71,14 +71,37 @@ const Setting = () => {
       return;
     }
 
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      swal("Error", "You must login first", "error");
+      return;
+    }
+
     try {
       const res = await fetch("http://localhost:5000/api/settings/save-smtp", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(settings),
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+
+      if (!res.ok) {
+        if (res.status === 403) {
+          throw new Error("You are not an admin. Contact your administrator.");
+        } else {
+          throw new Error(data.error || "Failed to save SMTP settings");
+        }
+      }
 
       if (data.success) {
         swal("Success!", "Settings saved to server!", "success");
@@ -91,10 +114,11 @@ const Setting = () => {
           });
         }
       } else {
-        swal("Error", data.message, "error");
+        swal("Error", data.message || "Failed to save SMTP settings", "error");
       }
     } catch (err) {
-      swal("Error", "Could not connect to server", "error");
+      console.error(err);
+      swal("Error", err.message || "Could not connect to server", "error");
     }
   };
 

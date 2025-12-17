@@ -3,6 +3,8 @@ const router = express.Router();
 const pool = require("../db");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
+const auth = require("../middleware/auth");
+const isAdmin = require("../middleware/isAdmin");
 
 router.use(
   cors({
@@ -13,7 +15,7 @@ router.use(
 );
 
 // GET single user by ID
-router.get("/:id", async (req, res) => {
+router.get("/:id", auth, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
@@ -35,7 +37,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // UPDATE user
-router.put("/:id", async (req, res) => {
+router.put("/:id", auth, isAdmin, async (req, res) => {
   const { id } = req.params;
   const {
     emp_id,
@@ -162,7 +164,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // DELETE user (soft delete - mark as inactive)
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", auth, isAdmin, async (req, res) => {
   const { id } = req.params;
 
   try {
