@@ -1,3 +1,4 @@
+// src/components/Header.js
 import React, { useState, useRef, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -12,8 +13,7 @@ import { useNavigate } from "react-router-dom";
 import "./Header.css";
 import npaxlogo from "../assets/images/logo-npax.png";
 
-// Add setCurrentPage to the props
-const Header = ({ user, handleLogout, setCurrentPage }) => {
+const Header = ({ user, handleLogout }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
@@ -31,20 +31,29 @@ const Header = ({ user, handleLogout, setCurrentPage }) => {
 
   // Function to handle profile click
   const handleProfileClick = () => {
-    setCurrentPage("profile");
-    setDropdownOpen(false); // Close dropdown after clicking
+    navigate("/dashboard/profile");
+    setDropdownOpen(false);
   };
 
   const handleSettingsClick = () => {
-    setCurrentPage("setting");
+    navigate("/dashboard/settings");
     setDropdownOpen(false);
+  };
+
+  const handleDashboardHome = () => {
+    navigate("/dashboard");
   };
 
   return (
     <header className="app-header">
-      {/* Left */}
+      {/* Left - Logo */}
       <div className="header-left">
-        <img className="logo-image" src={npaxlogo} alt="NXPERT EON" />
+        <button
+          onClick={handleDashboardHome}
+          style={{ background: "none", border: "none", cursor: "pointer" }}
+        >
+          <img className="logo-image" src={npaxlogo} alt="NXPERT EON" />
+        </button>
       </div>
 
       {/* Right */}
@@ -83,7 +92,6 @@ const Header = ({ user, handleLogout, setCurrentPage }) => {
 
           {dropdownOpen && (
             <div className="dropdown-menu">
-              {/* Use handleProfileClick instead of inline function */}
               <button onClick={handleProfileClick}>
                 <FontAwesomeIcon icon={faUser} className="dropdown-icon" />
                 Profile

@@ -96,3 +96,38 @@ h6 {
   height: 100dvh;
   max-width: 15400px;
 }
+
+/* Active link styles for sidebar */
+.active-link {
+  background-color: #e0e7ff !important;
+  color: #1e3a8a !important;
+}
+
+.active-link svg {
+  color: #1e3a8a !important;
+}
+
+/* Smooth transitions */
+* {
+  transition: background-color 0.3s ease, color 0.3s ease,
+    border-color 0.3s ease;
+}
+
+/* Scrollbar styling */
+.dashboard-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dashboard-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.dashboard-content::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.dashboard-content::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}

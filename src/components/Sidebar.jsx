@@ -1,5 +1,4 @@
-// src/components/Sidebar.js (or AppSidebar.js)
-
+// src/components/Sidebar.js
 import React from "react";
 import { Sidebar, Menu, MenuItem } from "react-pro-sidebar";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -12,18 +11,19 @@ import {
   faFileLines,
   faChartBar,
   faUsers,
+  faUser,
+  faGear,
 } from "@fortawesome/free-solid-svg-icons";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import SidebarTooltip from "./SidebarTooltip";
 import "./Sidebar.css";
 
-// 1. ACCEPT THE PROPS: 'collapsed' state and 'setCollapsed' setter from Dashboard.js
-const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
-  // 2. IMPORTANT: The local useState is removed, as state is managed by the parent.
+const AppSidebar = ({ collapsed, setCollapsed }) => {
+  const location = useLocation();
 
   return (
     <Sidebar
-      collapsed={collapsed} // Use the prop
+      collapsed={collapsed}
       width="260px"
       collapsedWidth="80px"
       rootStyles={{
@@ -31,7 +31,7 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
         margin: "10px 0 10px 10px",
         border: "1px solid #efefef",
         borderRadius: "10px",
-        boxShadow: "rgba(17, 12, 46, 0.15) 0px 48px 100px 0px;",
+        boxShadow: "rgba(17, 12, 46, 0.15) 0px 48px 100px 0px",
         transition: "width 300ms",
         backgroundColor: "#ffffff",
         height: "90dvh",
@@ -43,7 +43,6 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
           padding: "10px",
           display: "flex",
           alignItems: "center",
-          // Use the prop 'collapsed'
           justifyContent: collapsed ? "center" : "space-between",
         }}
       >
@@ -61,7 +60,6 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
         )}
 
         <button
-          // 3. IMPORTANT: Use the PROP SETTER 'setCollapsed' to update state in the parent.
           onClick={() => setCollapsed(!collapsed)}
           style={{
             background: "none",
@@ -74,13 +72,11 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
         </button>
       </div>
 
-      {/* Menu items remain the same, using the 'collapsed' prop for conditional styles */}
-
       <Menu
         menuItemStyles={{
           button: {
             color: "#000",
-            fontSize: "14px", // sets text size for all items
+            fontSize: "14px",
             "& svg": { color: "#2563eb" },
             "&:hover": { backgroundColor: "#e0e7ff", color: "#1e3a8a" },
             "&:hover svg": { color: "#1e3a8a" },
@@ -96,7 +92,7 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
             cursor: "default",
             color: "#2563eb",
             paddingLeft: collapsed ? "0px" : "16px",
-            fontSize: collapsed ? "0px" : "12px", // hide text when collapsed
+            fontSize: collapsed ? "0px" : "12px",
             height: "24px",
             lineHeight: "24px",
           }}
@@ -111,7 +107,8 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
               <FontAwesomeIcon icon={faCalendarAlt} />
             </SidebarTooltip>
           }
-          component={<Link to="/planning" />}
+          component={<Link to="/dashboard/planning" />}
+          active={location.pathname === "/dashboard/planning"}
         >
           Production Planning
         </MenuItem>
@@ -122,7 +119,8 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
               <FontAwesomeIcon icon={faRoute} />
             </SidebarTooltip>
           }
-          component={<Link to="/tracking" />}
+          component={<Link to="/dashboard/tracking" />}
+          active={location.pathname === "/dashboard/tracking"}
         >
           Process Tracking
         </MenuItem>
@@ -134,7 +132,7 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
             cursor: "default",
             color: "#2563eb",
             paddingLeft: collapsed ? "0px" : "16px",
-            fontSize: collapsed ? "0px" : "12px", // hide text when collapsed
+            fontSize: collapsed ? "0px" : "12px",
             height: "24px",
             lineHeight: "24px",
           }}
@@ -149,7 +147,8 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
               <FontAwesomeIcon icon={faExclamationTriangle} />
             </SidebarTooltip>
           }
-          component={<Link to="/quality" />}
+          component={<Link to="/dashboard/quality" />}
+          active={location.pathname === "/dashboard/quality"}
         >
           Quality & Defects
         </MenuItem>
@@ -163,7 +162,8 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
               <FontAwesomeIcon icon={faTools} />
             </SidebarTooltip>
           }
-          component={<Link to="/quality/ng-rework" />}
+          component={<Link to="/dashboard/quality/ng-rework" />}
+          active={location.pathname === "/dashboard/quality/ng-rework"}
         >
           NG & Rework Management
         </MenuItem>
@@ -175,7 +175,7 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
             cursor: "default",
             color: "#2563eb",
             paddingLeft: collapsed ? "0px" : "16px",
-            fontSize: collapsed ? "0px" : "12px", // hide text when collapsed
+            fontSize: collapsed ? "0px" : "12px",
             height: "24px",
             lineHeight: "24px",
           }}
@@ -193,7 +193,8 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
               <FontAwesomeIcon icon={faFileLines} />
             </SidebarTooltip>
           }
-          component={<Link to="/reports/daily" />}
+          component={<Link to="/dashboard/reports/daily" />}
+          active={location.pathname === "/dashboard/reports/daily"}
         >
           Daily Production Report (DPR)
         </MenuItem>
@@ -207,7 +208,8 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
               <FontAwesomeIcon icon={faFileLines} />
             </SidebarTooltip>
           }
-          component={<Link to="/reports/monthly" />}
+          component={<Link to="/dashboard/reports/monthly" />}
+          active={location.pathname === "/dashboard/reports/monthly"}
         >
           Monthly Production Report (MPR)
         </MenuItem>
@@ -221,7 +223,8 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
               <FontAwesomeIcon icon={faFileLines} />
             </SidebarTooltip>
           }
-          component={<Link to="/reports/yearly" />}
+          component={<Link to="/dashboard/reports/yearly" />}
+          active={location.pathname === "/dashboard/reports/yearly"}
         >
           Yearly Production Report (YPR)
         </MenuItem>
@@ -233,7 +236,7 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
             cursor: "default",
             color: "#2563eb",
             paddingLeft: collapsed ? "0px" : "16px",
-            fontSize: collapsed ? "0px" : "12px", // hide text when collapsed
+            fontSize: collapsed ? "0px" : "12px",
             height: "24px",
             lineHeight: "24px",
           }}
@@ -248,7 +251,8 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
               <FontAwesomeIcon icon={faChartBar} />
             </SidebarTooltip>
           }
-          component={<Link to="/analytics" />}
+          component={<Link to="/dashboard/analytics" />}
+          active={location.pathname === "/dashboard/analytics"}
         >
           Analytics & Insights
         </MenuItem>
@@ -275,7 +279,8 @@ const AppSidebar = ({ collapsed, setCollapsed, setCurrentPage }) => {
               <FontAwesomeIcon icon={faUsers} />
             </SidebarTooltip>
           }
-          onClick={() => setCurrentPage("usermaster")} // <- update currentPage
+          component={<Link to="/dashboard/usermaster" />}
+          active={location.pathname === "/dashboard/usermaster"}
         >
           User Master
         </MenuItem>

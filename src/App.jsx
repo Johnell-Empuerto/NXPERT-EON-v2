@@ -1,12 +1,15 @@
-import React from 'react';
-import { BrowserRouter as Router } from 'react-router-dom';
-import './styles/Global.css';
-import AppRoutes from './routes/AppRoutes';
+// src/App.js
+import React from "react";
+import { BrowserRouter as Router } from "react-router-dom";
+import "./styles/Global.css";
+import AppRoutes from "./routes/AppRoutes";
 
 const App = () => {
   return (
     <Router>
-      <AppRoutes />
+      <div className="app-container">
+        <AppRoutes />
+      </div>
     </Router>
   );
 };

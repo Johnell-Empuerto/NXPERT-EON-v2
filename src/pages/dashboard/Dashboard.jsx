@@ -1,67 +1,87 @@
+// src/pages/dashboard/Dashboard.js
 import React, { useState } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
 import AppSidebar from "../../components/Sidebar";
 import Profile from "../profile/Profile";
 import UserMaster from "../usermaster/UserMaster";
-import Header from "../../components/Header"; // import header
-import "../dashboard/Dashboard.css";
-import "../../styles/Global.css";
+import Header from "../../components/Header";
 import Setting from "../settings/Setting";
+import "./Dashboard.css";
+
+// Home component for dashboard
+const DashboardHome = () => (
+  <div style={{ padding: "20px" }}>
+    <h1>Welcome to the Dashboard!</h1>
+    <p>Select a menu item from the sidebar or header.</p>
+  </div>
+);
 
 const Dashboard = ({ user, setUser, handleLogout }) => {
-  // Sidebar collapse state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-
-  // Current page state
-  const [currentPage, setCurrentPage] = useState("home");
-
-  // Sidebar width
   const sidebarWidth = isSidebarCollapsed ? "100px" : "280px";
-
-  // Render content based on current page
-  const renderContent = () => {
-    switch (currentPage) {
-      case "profile":
-        return <Profile user={user} setUser={setUser} />;
-      case "usermaster":
-        return <UserMaster />;
-      case "setting": // Add this case
-        return <Setting user={user} />;
-      case "home":
-      default:
-        return (
-          <div style={{ padding: "20px" }}>
-            <h1>Welcome to the Dashboard!</h1>
-            <p>Select a menu item from the sidebar or header.</p>
-          </div>
-        );
-    }
-  };
 
   return (
     <div className="wrapper">
-      {/* Header */}
-      <Header
-        user={user}
-        handleLogout={handleLogout}
-        setCurrentPage={setCurrentPage} // ✅ pass setter to header
-      />
+      <Header user={user} handleLogout={handleLogout} />
 
       <div className="dashboard-container">
-        {/* Sidebar */}
         <div className="sidebar-con">
           <AppSidebar
             collapsed={isSidebarCollapsed}
             setCollapsed={setIsSidebarCollapsed}
-            setCurrentPage={setCurrentPage}
           />
         </div>
 
-        {/* Main content */}
         <main
           className="dashboard-content"
           style={{ marginLeft: sidebarWidth, transition: "margin-left 0.3s" }}
         >
-          {renderContent()}
+          <Routes>
+            <Route path="/" element={<DashboardHome />} />
+            <Route
+              path="/profile"
+              element={<Profile user={user} setUser={setUser} />}
+            />
+            <Route path="/usermaster" element={<UserMaster />} />
+            <Route path="/settings" element={<Setting user={user} />} />
+
+            {/* Add these routes for the existing sidebar links */}
+            <Route
+              path="/planning"
+              element={<div>Production Planning - Coming Soon</div>}
+            />
+            <Route
+              path="/tracking"
+              element={<div>Process Tracking - Coming Soon</div>}
+            />
+            <Route
+              path="/quality"
+              element={<div>Quality & Defects - Coming Soon</div>}
+            />
+            <Route
+              path="/quality/ng-rework"
+              element={<div>NG & Rework Management - Coming Soon</div>}
+            />
+            <Route
+              path="/reports/daily"
+              element={<div>Daily Production Report - Coming Soon</div>}
+            />
+            <Route
+              path="/reports/monthly"
+              element={<div>Monthly Production Report - Coming Soon</div>}
+            />
+            <Route
+              path="/reports/yearly"
+              element={<div>Yearly Production Report - Coming Soon</div>}
+            />
+            <Route
+              path="/analytics"
+              element={<div>Analytics & Insights - Coming Soon</div>}
+            />
+
+            {/* Fallback for any unmatched routes under /dashboard */}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
         </main>
       </div>
     </div>

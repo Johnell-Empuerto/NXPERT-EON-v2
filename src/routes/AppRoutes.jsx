@@ -1,15 +1,14 @@
+// src/routes/AppRoutes.js
 import React, { useState, useEffect, useRef } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "../pages/login/Login";
 import Dashboard from "../pages/dashboard/Dashboard";
-import UserMaster from "../pages/usermaster/UserMaster";
+import ProtectedRoute from "./ProtectedRoute"; // We'll create this
 
 const AppRoutes = () => {
   const authData = JSON.parse(localStorage.getItem("auth"));
   const [isLoggedIn, setIsLoggedIn] = useState(!!authData);
   const [user, setUser] = useState(authData ? authData.user : null);
-  const [currentPage, setCurrentPage] = useState("home");
-
   const idleTimeout = useRef(null);
 
   // Function to logout
@@ -53,44 +52,34 @@ const AppRoutes = () => {
   }, [isLoggedIn]);
 
   return (
-    <>
-      {/* Header removed from here - it's now only inside Dashboard component */}
+    <Routes>
+      <Route
+        path="/login"
+        element={<Login setIsLoggedIn={setIsLoggedIn} setUser={setUser} />}
+      />
 
-      <Routes>
-        <Route
-          path="/login"
-          element={<Login setIsLoggedIn={setIsLoggedIn} setUser={setUser} />}
-        />
-        <Route
-          path="/dashboard"
-          element={
-            isLoggedIn ? (
-              <Dashboard
-                user={user}
-                setUser={setUser}
-                currentPage={currentPage}
-                setCurrentPage={setCurrentPage}
-                handleLogout={handleLogout} // Pass handleLogout to Dashboard
-              />
-            ) : (
-              <Navigate to="/login" />
-            )
-          }
-        />
-        <Route
-          path="/"
-          element={
-            isLoggedIn ? <Navigate to="/dashboard" /> : <Navigate to="/login" />
-          }
-        />
-        <Route path="*" element={<Navigate to="/login" />} />
+      <Route
+        path="/dashboard/*"
+        element={
+          <ProtectedRoute isLoggedIn={isLoggedIn}>
+            <Dashboard
+              user={user}
+              setUser={setUser}
+              handleLogout={handleLogout}
+            />
+          </ProtectedRoute>
+        }
+      />
 
-        <Route
-          path="/usermaster"
-          element={isLoggedIn ? <UserMaster /> : <Navigate to="/login" />}
-        />
-      </Routes>
-    </>
+      <Route
+        path="/"
+        element={
+          isLoggedIn ? <Navigate to="/dashboard" /> : <Navigate to="/login" />
+        }
+      />
+
+      <Route path="*" element={<Navigate to="/login" />} />
+    </Routes>
   );
 };
 
