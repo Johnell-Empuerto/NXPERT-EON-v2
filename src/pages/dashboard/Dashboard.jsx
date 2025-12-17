@@ -7,14 +7,8 @@ import UserMaster from "../usermaster/UserMaster";
 import Header from "../../components/Header";
 import Setting from "../settings/Setting";
 import "./Dashboard.css";
-
-// Home component for dashboard
-const DashboardHome = () => (
-  <div style={{ padding: "20px" }}>
-    <h1>Welcome to the Dashboard!</h1>
-    <p>Select a menu item from the sidebar or header.</p>
-  </div>
-);
+import DashboardHome from "./DashboardHome";
+import ProductionPlanning from "../productionPlanning/ProductionPlanning";
 
 const Dashboard = ({ user, setUser, handleLogout }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -46,10 +40,7 @@ const Dashboard = ({ user, setUser, handleLogout }) => {
             <Route path="/settings" element={<Setting user={user} />} />
 
             {/* Add these routes for the existing sidebar links */}
-            <Route
-              path="/planning"
-              element={<div>Production Planning - Coming Soon</div>}
-            />
+            <Route path="/planning" element={<ProductionPlanning />} />
             <Route
               path="/tracking"
               element={<div>Process Tracking - Coming Soon</div>}

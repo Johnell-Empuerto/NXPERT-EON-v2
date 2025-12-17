@@ -1,6 +1,7 @@
 .dashboard-container {
   display: flex;
   width: 100%;
+  min-height: 100vh;
 }
 
 .sidebar-con {
@@ -11,14 +12,30 @@
 }
 
 .dashboard-content {
+  flex: 1;
   margin-left: 280px;
-  width: 100%;
-  /* padding: 20px; */
-  overflow-y: auto;
-
+  width: calc(100% - 280px);
+  padding: 20px;
+  min-height: calc(100vh - 80px); /* Adjust based on header height */
   background-color: #ffffff;
   border: 1px solid #efefef;
   border-radius: 10px;
   box-shadow: rgba(17, 12, 46, 0.15) 0px 48px 100px 0px;
   margin-top: 10px;
+  margin-right: 10px;
+}
+
+/* When sidebar is collapsed */
+.dashboard-content.collapsed {
+  margin-left: 100px;
+  width: calc(100% - 100px);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .dashboard-content {
+    margin-left: 0;
+    width: 100%;
+    margin-top: 60px;
+  }
 }
