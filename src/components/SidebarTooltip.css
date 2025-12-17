@@ -1,0 +1,80 @@
+.tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tooltip-text {
+  position: fixed; /* IMPORTANT */
+  background: #111827;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 999999;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 0.15s ease;
+  left: 65px;
+}
+
+.tooltip-wrapper:hover .tooltip-text {
+  opacity: 1;
+}
+/* SidebarTooltip.css */
+.sidebar-tooltip-container {
+  position: relative;
+  display: inline-block;
+}
+
+.sidebar-tooltip {
+  visibility: hidden;
+  background-color: #333;
+  color: #fff;
+  text-align: center;
+  padding: 8px 12px;
+  border-radius: 6px;
+  position: absolute;
+  z-index: 1000;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 10px;
+  white-space: nowrap;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* Tooltip arrow */
+.sidebar-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  margin-top: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent #333 transparent transparent;
+}
+
+.sidebar-tooltip-container:hover .sidebar-tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Prevent tooltip from being cut off when sidebar is collapsed */
+.react-pro-sidebar {
+  overflow: visible !important;
+}
+
+.react-pro-sidebar .pro-menu {
+  overflow: visible !important;
+}
+
+.react-pro-sidebar .pro-menu-item {
+  overflow: visible !important;
+}

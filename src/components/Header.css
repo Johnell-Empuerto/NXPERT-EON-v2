@@ -1,0 +1,110 @@
+/* ------------------ Header Container ------------------ */
+.app-header {
+  height: 60px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background-color: #ffffff;
+  box-shadow: rgba(17, 12, 46, 0.15) 0px 48px 100px 0px;
+  border-radius: 10px;
+  border-bottom: 1px solid #e5e5e5;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+/* ------------------ Logo ------------------ */
+.header-left .logo-image {
+  width: 100%;
+  max-width: 140px;
+  height: 40px;
+}
+
+/* ------------------ Header Right Section ------------------ */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+/* ------------------ Search Box ------------------ */
+.header-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f3f4f6;
+  padding: 5px 10px;
+  border-radius: 6px;
+}
+
+.header-search input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  margin-left: 5px;
+}
+
+/* ------------------ Icon Buttons ------------------ */
+.icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  font-size: 18px;
+}
+
+/* ------------------ Notification Badge ------------------ */
+.badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 50%;
+}
+
+/* ------------------ User Dropdown ------------------ */
+.user-dropdown {
+  position: relative;
+}
+
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 8px;
+  background: #ffffff;
+  border-radius: 8px;
+  min-width: 160px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.dropdown-menu button {
+  width: 100%;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  text-align: left;
+}
+
+.dropdown-menu button:hover {
+  background-color: #f1f5f9;
+}
+
+.dropdown-icon {
+  font-size: 16px;
+  color: #2563eb;
+}
