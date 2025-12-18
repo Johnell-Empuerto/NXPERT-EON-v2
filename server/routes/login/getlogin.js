@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 
 const express = require("express");
 const router = express.Router();
-const pool = require("../db");
+const pool = require("../../db");
 const cors = require("cors");
 const bcrypt = require("bcrypt"); // Use bcrypt instead of bcryptjs
 

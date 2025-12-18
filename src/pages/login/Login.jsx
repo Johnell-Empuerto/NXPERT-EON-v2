@@ -9,6 +9,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { useNavigate } from "react-router-dom";
 import swal from "sweetalert";
+import API_BASE_URL from "../../config/api";
 
 import NPAX from "../../assets/images/logo-npax.png";
 import sideImage from "../../assets/images/manager-supervisor-worker-discussing-about-production-results-new-strategy-factory-industrial-hall.jpg";
@@ -50,7 +51,7 @@ const Login = ({ setIsLoggedIn, setUser }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch("http://localhost:5000/api/login", {
+      const response = await fetch(`${API_BASE_URL}/api/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ empId, password }),
@@ -102,7 +103,7 @@ const Login = ({ setIsLoggedIn, setUser }) => {
 
     try {
       const response = await fetch(
-        "http://localhost:5000/api/forgot-password/request-reset",
+        `${API_BASE_URL}/api/forgot-password/request-reset`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -153,7 +154,7 @@ const Login = ({ setIsLoggedIn, setUser }) => {
 
     try {
       const response = await fetch(
-        "http://localhost:5000/api/forgot-password/verify-code",
+        `${API_BASE_URL}/api/forgot-password/verify-code`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -195,7 +196,7 @@ const Login = ({ setIsLoggedIn, setUser }) => {
 
     try {
       const response = await fetch(
-        "http://localhost:5000/api/forgot-password/request-reset",
+        `${API_BASE_URL}/api/forgot-password/request-reset`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -248,7 +249,7 @@ const Login = ({ setIsLoggedIn, setUser }) => {
 
     try {
       const response = await fetch(
-        "http://localhost:5000/api/forgot-password/reset-password",
+        `${API_BASE_URL}/api/forgot-password/reset-password`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

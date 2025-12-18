@@ -1,10 +1,10 @@
 // routes/settings.js
 const express = require("express");
 const router = express.Router();
-const pool = require("../db");
+const pool = require("../../db");
 const cors = require("cors");
-const auth = require("../middleware/auth");
-const isAdmin = require("../middleware/isAdmin");
+const auth = require("../../middleware/auth");
+const isAdmin = require("../../middleware/isAdmin");
 
 // Enable CORS only for this route
 router.use(

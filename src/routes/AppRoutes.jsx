@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "../pages/login/Login";
 import Dashboard from "../pages/dashboard/Dashboard";
 import ProtectedRoute from "./ProtectedRoute"; // We'll create this
+import swal from "sweetalert";
 
 const AppRoutes = () => {
   const authData = JSON.parse(localStorage.getItem("auth"));
@@ -24,7 +25,7 @@ const AppRoutes = () => {
     if (idleTimeout.current) clearTimeout(idleTimeout.current);
     idleTimeout.current = setTimeout(() => {
       handleLogout();
-      alert("Logged out due to inactivity");
+      swal("Session Expired", "Please login again.", "warning");
     }, 5 * 60 * 1000); // 5 minutes
   };
 

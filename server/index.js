@@ -21,15 +21,16 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use(express.json());
 
 // Import your login route
-const loginRouter = require("./routes/getlogin");
-const getUsersLoginRouter = require("./routes/getusers");
-const uploadProfileRouter = require("./routes/uploadprofile");
-const getAlluserMasterRouter = require("./routes/getAlluserMaster");
-const adduserMasterRouter = require("./routes/addUserMaster");
-const editUserMasterRouter = require("./routes/editUserMaster");
-const testSmtpRouter = require("./routes/testSmtp");
-const settingsRouter = require("./routes/settings");
-const forgotPasswordRouter = require("./routes/forgotPassword");
+const loginRouter = require("./routes/login/getlogin");
+const forgotPasswordRouter = require("./routes/login/forgotPassword");
+const getUsersLoginRouter = require("./routes/profile/getusers");
+const uploadProfileRouter = require("./routes/profile/uploadprofile");
+const getAlluserMasterRouter = require("./routes/usersmaster/getAlluserMaster");
+const adduserMasterRouter = require("./routes/usersmaster/addUserMaster");
+const editUserMasterRouter = require("./routes/usersmaster/editUserMaster");
+const testSmtpRouter = require("./routes/smtp/testSmtp");
+const settingsRouter = require("./routes/smtp/settings");
+const ProductionPlanningRouter = require("./routes/productionplanning/productionplanning");
 
 //api for login
 app.use("/api/login", loginRouter);
@@ -58,6 +59,9 @@ app.use("/api/settings", settingsRouter);
 
 //forget password
 app.use("/api/forgot-password", forgotPasswordRouter);
+
+//production planning
+app.use("/api/productionplanning", ProductionPlanningRouter);
 
 // Start the server
 app.listen(PORT, () => {

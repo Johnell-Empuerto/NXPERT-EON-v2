@@ -1,10 +1,10 @@
 const express = require("express");
 const router = express.Router();
-const pool = require("../db");
+const pool = require("../../db");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
-const auth = require("../middleware/auth");
-const isAdmin = require("../middleware/isAdmin");
+const auth = require("../../middleware/auth");
+const isAdmin = require("../../middleware/isAdmin");
 
 router.use(
   cors({
