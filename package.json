@@ -13,11 +13,20 @@
     "@fortawesome/fontawesome-svg-core": "^7.1.0",
     "@fortawesome/free-solid-svg-icons": "^7.1.0",
     "@fortawesome/react-fontawesome": "^3.1.1",
+    "@measured/puck": "^0.20.2",
+    "exceljs": "^4.4.0",
+    "fabric": "^6.9.1",
+    "html2canvas": "^1.4.1",
+    "konva": "^10.0.12",
+    "mammoth": "^1.11.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-konva": "^19.2.1",
     "react-pro-sidebar": "^1.1.0",
     "react-router-dom": "^7.10.1",
-    "sweetalert": "^2.1.2"
+    "sweetalert": "^2.1.2",
+    "xlsx": "^0.18.5",
+    "xml-formatter": "^3.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
