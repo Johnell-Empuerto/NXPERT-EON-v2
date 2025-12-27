@@ -9,7 +9,7 @@ import Setting from "../settings/Setting";
 import "./Dashboard.css";
 import DashboardHome from "./DashboardHome";
 import ProductionPlanning from "../productionPlanning/ProductionPlanning";
-import ExcelFormDesigner from "../excel-to-form/ExcelFormDesigner";
+import ExcelChecksheet from "../excel-to-form/ExcelChecksheet";
 
 const Dashboard = ({ user, setUser, handleLogout }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -71,7 +71,7 @@ const Dashboard = ({ user, setUser, handleLogout }) => {
               element={<div>Analytics & Insights - Coming Soon</div>}
             />
 
-            <Route path="/excel-to-form" element={<ExcelFormDesigner />} />
+            <Route path="/excel-checksheet" element={<ExcelChecksheet />} />
 
             {/* Fallback for any unmatched routes under /dashboard */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

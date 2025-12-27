@@ -31,6 +31,7 @@ const editUserMasterRouter = require("./routes/usersmaster/editUserMaster");
 const testSmtpRouter = require("./routes/smtp/testSmtp");
 const settingsRouter = require("./routes/smtp/settings");
 const ProductionPlanningRouter = require("./routes/productionplanning/productionplanning");
+const checksheetRouter = require("./routes/cheeksheet/checksheet");
 
 //api for login
 app.use("/api/login", loginRouter);
@@ -62,6 +63,8 @@ app.use("/api/forgot-password", forgotPasswordRouter);
 
 //production planning
 app.use("/api/productionplanning", ProductionPlanningRouter);
+
+app.use("/api/checksheet", checksheetRouter);
 
 // Start the server
 app.listen(PORT, () => {
