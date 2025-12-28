@@ -2,319 +2,11 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import parse from "html-react-parser";
 import axios from "axios";
 import JSZip from "jszip";
+import FormField from "./FormField";
+import FieldEditorModal from "./FieldEditorModal";
+import { getFieldTypeInfo } from "./excel-to-form-utils/fieldRegistry";
 import "./ExcelChecksheet.css";
 
-// --- FIELD EDITOR MODAL COMPONENT ---
-const FieldEditorModal = ({ field, isOpen, onClose, onSave }) => {
-  const [type, setType] = useState(field?.type || "text");
-  const [label, setLabel] = useState(field?.label || "");
-  const [options, setOptions] = useState(field?.options?.join(",") || "");
-  const [decimalPlaces, setDecimalPlaces] = useState(field?.decimalPlaces || 2);
-
-  useEffect(() => {
-    if (field) {
-      setType(field.type || "text");
-      setLabel(field.label || "");
-      setOptions(field.options?.join(",") || "");
-      setDecimalPlaces(field.decimalPlaces || 2);
-    }
-  }, [field]);
-
-  const handleSave = () => {
-    const updatedField = {
-      ...field,
-      type,
-      label,
-      options: options ? options.split(",").map((opt) => opt.trim()) : [],
-      decimalPlaces: type === "number" ? parseInt(decimalPlaces) : undefined,
-    };
-    onSave(updatedField);
-    onClose();
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        <h3>Edit Field Configuration</h3>
-
-        <div className="form-group">
-          <label>Field Type:</label>
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-            className="form-select"
-          >
-            <option value="text">Text</option>
-            <option value="number">Number</option>
-            <option value="date">Date</option>
-            <option value="checkbox">Checkbox</option>
-            <option value="dropdown">Dropdown</option>
-          </select>
-        </div>
-
-        <div className="form-group">
-          <label>Field Label:</label>
-          <input
-            type="text"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            className="form-input"
-            placeholder="Enter field label"
-          />
-        </div>
-
-        {type === "dropdown" && (
-          <div className="form-group">
-            <label>Options (comma-separated):</label>
-            <input
-              type="text"
-              value={options}
-              onChange={(e) => setOptions(e.target.value)}
-              className="form-input"
-              placeholder="Option1, Option2, Option3"
-            />
-            <small>Separate options with commas</small>
-          </div>
-        )}
-
-        {type === "number" && (
-          <div className="form-group">
-            <label>Decimal Places:</label>
-            <input
-              type="number"
-              min="0"
-              max="10"
-              value={decimalPlaces}
-              onChange={(e) => setDecimalPlaces(e.target.value)}
-              className="form-input"
-            />
-          </div>
-        )}
-
-        <div className="modal-actions">
-          <button onClick={onClose} className="btn-secondary">
-            Cancel
-          </button>
-          <button onClick={handleSave} className="btn-primary">
-            Save Changes
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// --- Enhanced FormField Component with Edit Button ---
-const FormField = ({
-  type,
-  label,
-  name,
-  value,
-  onChange,
-  decimalPlaces,
-  options,
-  onEditField,
-}) => {
-  const [height, setHeight] = useState(38);
-  const minHeight = 28;
-  const maxHeight = 100;
-  const step = 10;
-
-  const handleHeightChange = (delta) => {
-    setHeight((prev) => {
-      const newHeight = prev + delta;
-      return Math.max(minHeight, Math.min(maxHeight, newHeight));
-    });
-  };
-
-  const [displayValue, setDisplayValue] = useState("");
-
-  // Handle number field initialization and updates
-  useEffect(() => {
-    if (type === "number") {
-      if (value !== undefined && value !== null && value !== "") {
-        const num = typeof value === "number" ? value : parseFloat(value);
-        if (!isNaN(num)) {
-          const formatted =
-            decimalPlaces !== undefined
-              ? num.toFixed(decimalPlaces)
-              : num.toString();
-          setDisplayValue(formatted);
-        }
-      } else {
-        setDisplayValue("");
-      }
-    } else {
-      setDisplayValue(value || "");
-    }
-  }, [value, decimalPlaces, type]);
-
-  const handleNumberChange = (e) => {
-    const val = e.target.value;
-    if (val === "" || val === "." || /^\d*\.?\d*$/.test(val)) {
-      setDisplayValue(val);
-      const num = val === "" || val === "." ? null : parseFloat(val);
-      onChange(name, isNaN(num) ? null : num, type, label);
-    }
-  };
-
-  const handleNumberBlur = () => {
-    if (displayValue === "" || displayValue === ".") {
-      setDisplayValue("");
-      onChange(name, null, type, label);
-      return;
-    }
-
-    const num = parseFloat(displayValue);
-    if (!isNaN(num)) {
-      const formatted =
-        decimalPlaces !== undefined
-          ? num.toFixed(decimalPlaces)
-          : num.toString();
-
-      setDisplayValue(formatted);
-      onChange(name, num, type, label);
-    }
-  };
-
-  const handleTextChange = (e) => {
-    const val = e.target.value;
-    setDisplayValue(val);
-    onChange(name, val, type, label);
-  };
-
-  const renderField = () => {
-    switch (type) {
-      case "text":
-        return (
-          <input
-            type="text"
-            placeholder={label}
-            className="form-input"
-            style={{ height: `${height}px` }}
-            value={displayValue}
-            onChange={handleTextChange}
-          />
-        );
-
-      case "dropdown":
-        return (
-          <select
-            className="form-select"
-            style={{ height: `${height}px` }}
-            value={displayValue}
-            onChange={(e) => onChange(name, e.target.value, type, label)}
-          >
-            <option value="" disabled>
-              {label}
-            </option>
-            {options?.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        );
-
-      case "date":
-        return (
-          <input
-            type="date"
-            className="form-input"
-            style={{ height: `${height}px` }}
-            value={displayValue}
-            onChange={(e) => onChange(name, e.target.value, type, label)}
-          />
-        );
-
-      case "checkbox":
-        return (
-          <div className="checkbox-container">
-            <input
-              type="checkbox"
-              checked={value || false}
-              onChange={(e) =>
-                onChange(name, e.target.checked, "checkbox", label)
-              }
-              className="form-checkbox"
-            />
-          </div>
-        );
-
-      case "number":
-        return (
-          <input
-            type="text"
-            inputMode="decimal"
-            placeholder={label}
-            className="form-input"
-            style={{ height: `${height}px` }}
-            value={displayValue}
-            onChange={handleNumberChange}
-            onBlur={handleNumberBlur}
-          />
-        );
-
-      default:
-        return <span className="unknown-type">Unknown: {type}</span>;
-    }
-  };
-
-  return (
-    <div className="form-field-with-edit">
-      <div className="input-container">
-        {renderField()}
-        {type !== "checkbox" && (
-          <div className="resize-handle">
-            <span
-              onClick={() => handleHeightChange(step)}
-              title="Increase height"
-            >
-              ↑
-            </span>
-            <span
-              onClick={() => handleHeightChange(-step)}
-              title="Decrease height"
-            >
-              ↓
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* EDIT BUTTON */}
-      {onEditField && (
-        <button
-          className="edit-field-btn"
-          onClick={() =>
-            onEditField({ type, label, name, options, decimalPlaces })
-          }
-          title="Edit field configuration"
-        >
-          ⚙️
-        </button>
-      )}
-    </div>
-  );
-};
-
-// --- Helper to process HTML ---
-const processHtml = (html, injectExcelCSS) => {
-  html = html.replace(/\r/g, "");
-
-  const doc = new DOMParser().parseFromString(html, "text/html");
-
-  const styleElements = doc.querySelectorAll("head style");
-  styleElements.forEach((style) => {
-    injectExcelCSS(style.innerHTML);
-  });
-
-  return doc.body ? doc.body.innerHTML : html;
-};
-
-// --- Main Component ---
 const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   const [htmlContent, setHtmlContent] = useState(initialHtml);
   const [formData, setFormData] = useState({});
@@ -328,21 +20,18 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   const fileInputRef = useRef(null);
   const fieldCounter = useRef(0);
 
-  // Update local state if prop changes
   useEffect(() => {
     setHtmlContent(initialHtml);
   }, [initialHtml]);
 
-  // Cleanup image URLs when component unmounts
+  // Cleanup object URLs
   useEffect(() => {
     return () => {
-      Object.values(images).forEach((url) => {
-        URL.revokeObjectURL(url);
-      });
+      Object.values(images).forEach((url) => URL.revokeObjectURL(url));
     };
   }, [images]);
 
-  // Extract field configurations from HTML
+  // Extract field placeholders: {{type:label[:decimals][:option1,option2]}}
   const extractFieldConfigs = (html) => {
     const regex = /\{\{(\w+):([^:]+)(?::(\d+))?(?::([^}]+))?\}\}/g;
     const matches = [...html.matchAll(regex)];
@@ -350,19 +39,19 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
 
     matches.forEach((match) => {
       const [fullMatch, rawType, rawLabel, rawDecimals, rawOptions] = match;
-      const fieldType = rawType.toLowerCase();
-      const fieldLabel = rawLabel.trim();
+      const type = rawType.toLowerCase();
+      const label = rawLabel.trim();
       const decimalPlaces = rawDecimals ? parseInt(rawDecimals, 10) : undefined;
       const options = rawOptions
         ? rawOptions.split(",").map((o) => o.trim())
         : null;
 
-      const baseFieldKey = `field_${fieldLabel.replace(/\s+/g, "_")}`;
+      const baseKey = `field_${label.replace(/\s+/g, "_")}`;
 
-      configs[baseFieldKey] = {
-        originalType: fieldType,
-        type: fieldType,
-        label: fieldLabel,
+      configs[baseKey] = {
+        originalType: type,
+        type,
+        label,
         options,
         decimalPlaces,
         originalHtml: fullMatch,
@@ -372,7 +61,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     return configs;
   };
 
-  // Update fieldConfigs when HTML changes
   useEffect(() => {
     if (htmlContent) {
       const configs = extractFieldConfigs(htmlContent);
@@ -380,10 +68,10 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     }
   }, [htmlContent]);
 
-  // Inject CSS into <head>
+  // Inject CSS from Excel export
   const injectExcelCSS = (cssText) => {
-    const old = document.getElementById("excel-css");
-    if (old) old.remove();
+    const existing = document.getElementById("excel-css");
+    if (existing) existing.remove();
 
     const style = document.createElement("style");
     style.id = "excel-css";
@@ -391,113 +79,100 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     document.head.appendChild(style);
   };
 
-  // Extract images from ZIP
+  const processHtml = (html) => {
+    html = html.replace(/\r/g, "");
+    const doc = new DOMParser().parseFromString(html, "text/html");
+
+    doc.querySelectorAll("head style").forEach((style) => {
+      injectExcelCSS(style.innerHTML);
+    });
+
+    return doc.body ? doc.body.innerHTML : html;
+  };
+
+  // Image handling (ZIP)
   const extractImages = async (zip) => {
     const imageMap = {};
-
     for (const filename in zip.files) {
-      if (filename.match(/\.(png|jpg|jpeg|gif|bmp)$/i)) {
+      if (filename.match(/\.(png|jpg|jpeg|gif|bmp|svg)$/i)) {
         try {
           const blob = await zip.files[filename].async("blob");
-          const imageName = filename.split("/").pop();
-          imageMap[imageName] = URL.createObjectURL(blob);
+          const name = filename.split("/").pop();
+          imageMap[name] = URL.createObjectURL(blob);
         } catch (err) {
-          console.warn(`Failed to extract image: ${filename}`, err);
+          console.warn(`Failed to load image: ${filename}`, err);
         }
       }
     }
-
     return imageMap;
   };
 
-  // Rewrite image URLs in HTML
   const rewriteImageUrls = (html, imageMap) => {
-    let output = html;
-
+    let result = html;
     Object.entries(imageMap).forEach(([name, url]) => {
-      const regex1 = new RegExp(`src=["']([^"']*${name})["']`, "g");
-      const regex2 = new RegExp(`src=["']${name}["']`, "g");
-
-      output = output.replace(regex1, `src="${url}"`);
-      output = output.replace(regex2, `src="${url}"`);
+      result = result.replace(
+        new RegExp(`src=["']([^"']*${name})["']`, "g"),
+        `src="${url}"`
+      );
+      result = result.replace(
+        new RegExp(`src=["']${name}["']`, "g"),
+        `src="${url}"`
+      );
     });
-
-    return output;
+    return result;
   };
 
-  // Handle individual HTML/HTM file upload
+  // File Upload Handlers
   const handleHtmlUpload = async (file) => {
     const reader = new FileReader();
-
-    reader.onload = (event) => {
-      let content = event.target.result;
-
+    reader.onload = (e) => {
+      let content = e.target.result;
       if (content.includes("<frameset") || content.includes("<frame src")) {
         setError(
-          "⚠️ You uploaded the Main Workbook file. Please open the file folder, find the specific sheet file (e.g., 'sheet001.htm'), and upload that instead."
+          "⚠️ Please upload the individual sheet file (e.g., sheet001.htm), not the main workbook."
         );
         setIsUploading(false);
         return;
       }
-
-      content = processHtml(content, injectExcelCSS);
+      content = processHtml(content);
       setHtmlContent(content);
       setIsUploading(false);
     };
-
     reader.onerror = () => {
-      setError("Error reading HTML file.");
+      setError("Failed to read file.");
       setIsUploading(false);
     };
-
     reader.readAsText(file);
   };
 
-  // Handle ZIP Upload
   const handleZipUpload = async (file) => {
-    try {
-      const zip = new JSZip();
-      const zipContent = await zip.loadAsync(file);
+    const zip = await JSZip.loadAsync(file);
+    const files = Object.values(zip.files);
 
-      const files = Object.values(zipContent.files);
+    const htmlFile = files.find(
+      (f) => f.name.match(/sheet\d*\.htm(l)?$/i) && !f.dir
+    );
+    const cssFile = files.find((f) =>
+      f.name.toLowerCase().includes("stylesheet.css")
+    );
 
-      const htmlFile = files.find(
-        (f) => f.name.match(/(sheet\d+\.html?|sheet001\.html?)/i) && !f.dir
-      );
+    if (!htmlFile) throw new Error("No sheet HTML found in ZIP.");
 
-      const cssFile = files.find(
-        (f) => f.name.toLowerCase().endsWith("stylesheet.css") && !f.dir
-      );
+    let html = await htmlFile.async("text");
+    html = processHtml(html);
 
-      if (!htmlFile) {
-        throw new Error(
-          "No sheet HTML file found (looking for sheet001.html or similar)"
-        );
-      }
-
-      let htmlContent = await htmlFile.async("text");
-      htmlContent = processHtml(htmlContent, injectExcelCSS);
-
-      if (cssFile) {
-        const cssContent = await cssFile.async("text");
-        injectExcelCSS(cssContent);
-      } else {
-        console.warn("No stylesheet.css found in ZIP");
-      }
-
-      const imageMap = await extractImages(zipContent);
-      setImages(imageMap);
-
-      const processedHtml = rewriteImageUrls(htmlContent, imageMap);
-      setHtmlContent(processedHtml);
-      return true;
-    } catch (err) {
-      console.error("Error processing ZIP:", err);
-      throw err;
+    if (cssFile) {
+      const css = await cssFile.async("text");
+      injectExcelCSS(css);
     }
+
+    const imageMap = await extractImages(zip);
+    setImages(imageMap);
+
+    const processedHtml = rewriteImageUrls(html, imageMap);
+    setHtmlContent(processedHtml);
   };
 
-  // Main file upload handler
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -509,26 +184,24 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     setFormData({});
     setFieldConfigs({});
 
-    const fileExtension = file.name.split(".").pop().toLowerCase();
+    const ext = file.name.split(".").pop().toLowerCase();
 
     try {
-      if (fileExtension === "zip") {
+      if (ext === "zip") {
         await handleZipUpload(file);
-      } else if (fileExtension === "html" || fileExtension === "htm") {
+      } else if (["html", "htm"].includes(ext)) {
         await handleHtmlUpload(file);
       } else {
-        throw new Error(
-          "Unsupported file type. Please upload .zip, .html, or .htm files."
-        );
+        throw new Error("Please upload .zip, .html, or .htm files.");
       }
     } catch (err) {
-      setError(`Error processing file: ${err.message}`);
+      setError(`Error: ${err.message}`);
     } finally {
       setIsUploading(false);
     }
   };
 
-  // Handle changes in the injected fields
+  // Field value change
   const handleFieldChange = (name, value, type, label) => {
     setFormData((prev) => ({
       ...prev,
@@ -536,18 +209,14 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     }));
   };
 
-  // Handle field configuration edits
-  const handleEditField = (fieldInfo) => {
-    setEditingField(fieldInfo);
-  };
-
+  // Save edited field config
   const handleSaveFieldConfig = (updatedField) => {
-    const baseName = updatedField.name.split("_").slice(0, -1).join("_");
+    const baseKey = updatedField.name.split("_").slice(0, -1).join("_"); // remove unique ID
 
     setFieldConfigs((prev) => ({
       ...prev,
-      [baseName]: {
-        ...prev[baseName],
+      [baseKey]: {
+        ...prev[baseKey],
         type: updatedField.type,
         label: updatedField.label,
         options: updatedField.options,
@@ -556,78 +225,71 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     }));
   };
 
-  // Parser options
+  // HTML Parser with dynamic field injection
   const parseOptions = {
     replace: (node) => {
-      if (node.type === "text") {
-        const text = node.data;
-        const regex = /\{\{(\w+):([^:]+)(?::(\d+))?(?::([^}]+))?\}\}/g;
-        const matches = [...text.matchAll(regex)];
+      if (node.type !== "text") return;
 
-        if (matches.length > 0) {
-          const parts = [];
-          let lastIndex = 0;
+      const text = node.data;
+      const regex = /\{\{(\w+):([^:]+)(?::(\d+))?(?::([^}]+))?\}\}/g;
+      const matches = [...text.matchAll(regex)];
 
-          matches.forEach((match) => {
-            const [fullMatch, rawType, rawLabel, rawDecimals, rawOptions] =
-              match;
-            const fieldType = rawType.toLowerCase();
-            const fieldLabel = rawLabel.trim();
-            const decimalPlaces = rawDecimals
-              ? parseInt(rawDecimals, 10)
-              : undefined;
-            const options = rawOptions
-              ? rawOptions.split(",").map((o) => o.trim())
-              : null;
+      if (matches.length === 0) return;
 
-            const index = match.index;
+      const parts = [];
+      let lastIndex = 0;
 
-            if (index > lastIndex) {
-              parts.push(text.substring(lastIndex, index));
-            }
+      matches.forEach((match) => {
+        const [fullMatch, rawType, rawLabel, rawDecimals, rawOptions] = match;
+        const type = rawType.toLowerCase();
+        const label = rawLabel.trim();
+        const decimalPlaces = rawDecimals ? parseInt(rawDecimals) : undefined;
+        const options = rawOptions
+          ? rawOptions.split(",").map((o) => o.trim())
+          : null;
 
-            const uniqueId = ++fieldCounter.current;
-            const fieldName = `field_${fieldLabel.replace(
-              /\s+/g,
-              "_"
-            )}_${uniqueId}`;
-            const baseFieldKey = `field_${fieldLabel.replace(/\s+/g, "_")}`;
-
-            const config = fieldConfigs[baseFieldKey] || {};
-
-            parts.push(
-              <FormField
-                key={fieldName}
-                type={config.type || fieldType}
-                label={config.label || fieldLabel}
-                name={fieldName}
-                value={formData[fieldName]?.value}
-                onChange={handleFieldChange}
-                decimalPlaces={config.decimalPlaces || decimalPlaces}
-                options={config.options || options}
-                onEditField={() =>
-                  handleEditField({
-                    type: config.type || fieldType,
-                    label: config.label || fieldLabel,
-                    name: fieldName,
-                    options: config.options || options,
-                    decimalPlaces: config.decimalPlaces || decimalPlaces,
-                  })
-                }
-              />
-            );
-
-            lastIndex = index + fullMatch.length;
-          });
-
-          if (lastIndex < text.length) {
-            parts.push(text.substring(lastIndex));
-          }
-
-          return <>{parts}</>;
+        const index = match.index;
+        if (index > lastIndex) {
+          parts.push(text.substring(lastIndex, index));
         }
+
+        const uniqueId = ++fieldCounter.current;
+        const fieldName = `field_${label.replace(/\s+/g, "_")}_${uniqueId}`;
+        const baseKey = `field_${label.replace(/\s+/g, "_")}`;
+        const config = fieldConfigs[baseKey] || {};
+
+        const fieldInfo = getFieldTypeInfo(config.type || type);
+
+        parts.push(
+          <FormField
+            key={fieldName}
+            type={config.type || type}
+            label={config.label || label}
+            name={fieldName}
+            value={formData[fieldName]?.value ?? fieldInfo.defaultValue}
+            onChange={handleFieldChange}
+            decimalPlaces={config.decimalPlaces ?? decimalPlaces}
+            options={config.options ?? options}
+            onEditField={() =>
+              setEditingField({
+                name: fieldName,
+                type: config.type || type,
+                label: config.label || label,
+                options: config.options ?? options,
+                decimalPlaces: config.decimalPlaces ?? decimalPlaces,
+              })
+            }
+          />
+        );
+
+        lastIndex = index + fullMatch.length;
+      });
+
+      if (lastIndex < text.length) {
+        parts.push(text.substring(lastIndex));
       }
-      return undefined;
+
+      return <>{parts}</>;
     },
   };
 
@@ -636,93 +298,65 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     return parse(htmlContent, parseOptions);
   }, [htmlContent, formData, fieldConfigs]);
 
-  // Combined handlePublish that saves both form data and configurations
+  // Publish form
   const handlePublish = async () => {
-    if (!formName.trim()) {
-      alert("Please enter a form name");
-      return;
-    }
+    if (!formName.trim()) return alert("Please enter a form name");
+    if (!htmlContent) return alert("No content to publish");
 
-    if (!htmlContent) {
-      alert("No form content to publish");
-      return;
-    }
+    const editedConfigs = Object.entries(fieldConfigs).reduce(
+      (acc, [key, config]) => {
+        if (
+          config.type !== config.originalType ||
+          config.label !==
+            config.originalHtml.match(/\{\{(\w+):([^:]+)/)?.[2]?.trim()
+        ) {
+          acc[key] = {
+            type: config.type,
+            label: config.label,
+            options: config.options,
+            decimalPlaces: config.decimalPlaces,
+          };
+        }
+        return acc;
+      },
+      {}
+    );
 
-    // Prepare compact data to send
-    const fieldConfigurations = Object.keys(fieldConfigs).reduce((acc, key) => {
-      const config = fieldConfigs[key];
-      // Only include edited configurations (different from original)
-      if (
-        config.type !== config.originalType ||
-        config.label !==
-          config.originalHtml?.match(/\{\{(\w+):([^:]+)/)?.[2]?.trim()
-      ) {
-        acc[key] = {
-          type: config.type,
-          label: config.label,
-          options: config.options,
-          decimalPlaces: config.decimalPlaces,
-        };
-      }
-      return acc;
-    }, {});
-
-    // Prepare form values (only the actual values)
-    const formValues = Object.keys(formData).reduce((acc, key) => {
-      const field = formData[key];
-      // Only include fields with values
-      if (
-        field.value !== undefined &&
-        field.value !== null &&
-        field.value !== ""
-      ) {
-        acc[key] = field.value;
-      }
-      return acc;
-    }, {});
+    const filledValues = Object.entries(formData).reduce(
+      (acc, [key, { value }]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          acc[key] = value;
+        }
+        return acc;
+      },
+      {}
+    );
 
     try {
       const response = await axios.post(
         "http://localhost:5000/api/checksheet/templates",
         {
           name: formName,
-          html_content: htmlContent, // This might be large, consider storing separately
-          field_configurations: fieldConfigurations, // Send only edited configs
-          form_values: formValues, // Send only actual values
+          html_content: htmlContent,
+          field_configurations: editedConfigs,
+          form_values: filledValues,
           last_updated: new Date().toISOString(),
-          metadata: {
-            total_fields: Object.keys(formData).length,
-            edited_fields: Object.keys(fieldConfigurations).length,
-          },
         }
       );
 
       if (response.data.success) {
-        alert(
-          `Form "${formName}" published successfully! ID: ${response.data.template_id}`
-        );
+        alert(`Form "${formName}" published! ID: ${response.data.template_id}`);
         setFormName("");
-        // Optional: reset or keep the form
       }
-    } catch (error) {
-      console.error("Publish error:", error);
-
-      if (error.response?.status === 413) {
-        alert(
-          "Form is too large to publish. Please try with a smaller Excel file or contact support."
-        );
-      } else {
-        alert(
-          "Failed to publish form: " +
-            (error.response?.data?.message || error.message)
-        );
-      }
+    } catch (err) {
+      console.error(err);
+      alert("Publish failed: " + (err.response?.data?.message || err.message));
     }
   };
 
   return (
     <div className="container">
-      {/* Field Editor Modal */}
+      {/* Modal */}
       <FieldEditorModal
         field={editingField}
         isOpen={!!editingField}
@@ -741,18 +375,17 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
             onChange={handleFileUpload}
           />
           <button
-            onClick={() => fileInputRef.current.click()}
+            onClick={() => fileInputRef.current?.click()}
             className="upload-btn"
           >
             Upload File
           </button>
 
-          {/* Form Name Input + Publish Button */}
           {htmlContent && (
             <>
               <input
                 type="text"
-                placeholder="Enter Form Name"
+                placeholder="Form Name"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
                 className="form-name-input"
@@ -761,7 +394,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
                 onClick={handlePublish}
                 disabled={!formName.trim()}
                 className="primary-btn"
-                title="Publish form with current data and field configurations"
               >
                 Publish Form
               </button>
@@ -771,7 +403,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       </div>
 
       {error && <div className="error-banner">{error}</div>}
-
       {isUploading && <div className="loading">Processing file...</div>}
 
       <div className="preview-area">
@@ -779,10 +410,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
           <div className="excel-scope">
             {parsedContent}
             <div className="edit-note">
-              <small>
-                💡 Click the gear icon (⚙️) next to any field to edit its type,
-                label, or options.
-              </small>
+              <small>💡 Click ⚙️ to edit field type, label, or options.</small>
             </div>
           </div>
         ) : (

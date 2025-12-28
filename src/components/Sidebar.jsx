@@ -13,6 +13,7 @@ import {
   faUsers,
   faUser,
   faGear,
+  faClipboardList,
 } from "@fortawesome/free-solid-svg-icons";
 import { Link, useLocation } from "react-router-dom";
 import SidebarTooltip from "./SidebarTooltip";
@@ -255,6 +256,35 @@ const AppSidebar = ({ collapsed, setCollapsed }) => {
           active={location.pathname === "/dashboard/analytics"}
         >
           Analytics & Insights
+        </MenuItem>
+
+        {/* Forms Section Title */}
+        <MenuItem
+          style={{
+            fontWeight: "bold",
+            cursor: "default",
+            color: "#2563eb",
+            paddingLeft: collapsed ? "0px" : "16px",
+            fontSize: collapsed ? "0px" : "12px",
+            height: "24px",
+            lineHeight: "24px",
+          }}
+          disabled={true}
+        >
+          Forms
+        </MenuItem>
+
+        {/* Create Checksheet Template Builder */}
+        <MenuItem
+          icon={
+            <SidebarTooltip label="Checksheet Templates" collapsed={collapsed}>
+              <FontAwesomeIcon icon={faClipboardList} />
+            </SidebarTooltip>
+          }
+          component={<Link to="/dashboard/excel-checksheet" />}
+          active={location.pathname === "/dashboard/excel-checksheet"}
+        >
+          Create Checksheet Templates
         </MenuItem>
 
         {/* Masters */}
