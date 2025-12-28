@@ -327,7 +327,7 @@ const Login = ({ setIsLoggedIn, setUser }) => {
                   : step === 2
                   ? "Enter verification code sent to your email"
                   : "Create your new password"
-                : "Ensuring full traceability across all production stages"}
+                : "One System for Inventory, Traceability, Paperless Operations, and Analytics"}
             </p>
           </div>
 

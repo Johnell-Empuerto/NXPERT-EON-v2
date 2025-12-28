@@ -1,0 +1,441 @@
+/* FormField Styles */
+.input-container {
+  display: inline-block;
+  width: 100%;
+  position: relative;
+}
+
+.form-input {
+  width: 100%;
+  min-width: 50px;
+  border: 1px solid rgb(204, 204, 204);
+  padding: 8px 30px 8px 4px; /* extra right padding for icons */
+  font-size: inherit;
+  font-family: inherit;
+  background: rgb(255, 255, 255);
+  box-sizing: border-box;
+  position: relative;
+  border-radius: 0;
+}
+
+.form-select {
+  width: 100%;
+  min-width: 50px;
+  border: 1px solid rgb(204, 204, 204);
+  padding: 8px 40px 8px 4px; /* make room for arrow + resize icons */
+  font-size: inherit;
+  font-family: inherit;
+  background: rgb(255, 255, 255);
+  box-sizing: border-box;
+  position: relative;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  border-radius: 0;
+}
+
+.resize-handle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px;
+  background: #f0f0f0;
+  padding: 2px;
+  cursor: pointer;
+  user-select: none;
+  z-index: 10;
+}
+
+.checkbox-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.form-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.unknown-type {
+  color: red;
+}
+
+/* Main Component Styles */
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  font-family: sans-serif;
+  background-color: #f4f4f4;
+}
+
+.header {
+  background-color: #fff;
+  padding: 15px 20px;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.primary-btn {
+  padding: 10px 20px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.upload-btn {
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.error-banner {
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 15px;
+  text-align: center;
+  border-bottom: 1px solid #f5c6cb;
+}
+
+.loading {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+  font-style: italic;
+}
+
+.preview-area {
+  flex: 1;
+  padding: 20px;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+}
+
+.excel-scope {
+  border: 1px solid #ddd;
+  background: white;
+  padding: 20px;
+  max-width: 100%;
+  overflow: auto;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.placeholder {
+  margin-top: 20px;
+  color: #555;
+  text-align: center;
+  border: 2px dashed #ccc;
+  padding: 40px;
+  background: #fff;
+  width: 80%;
+  max-width: 800px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.placeholder-icon {
+  font-size: 40px;
+  margin-bottom: 20px;
+}
+
+.placeholder-list {
+  text-align: left;
+  display: inline-block;
+  margin-bottom: 20px;
+}
+
+.placeholder-note {
+  font-size: 0.9em;
+  color: #666;
+  margin-left: 20px;
+}
+
+.instructions {
+  margin-top: 30px;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-left: 4px solid #007bff;
+}
+
+.instructions-list {
+  text-align: left;
+  display: inline-block;
+}
+
+.excel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.excel-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.upload-btn {
+  padding: 10px 20px;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.primary-btn {
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.primary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+/* === Field Edit Button Styles === */
+.form-field-with-edit {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin: 2px;
+}
+
+.edit-field-btn {
+  margin-left: 5px;
+  padding: 4px 8px;
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.7;
+  transition: all 0.2s;
+  line-height: 1;
+  height: 30px;
+}
+
+.edit-field-btn:hover {
+  opacity: 1;
+  background: #e0e0e0;
+  transform: scale(1.05);
+}
+
+/* Checkbox field special styling */
+.checkbox-container + .edit-field-btn {
+  margin-top: 8px;
+}
+
+/* === Modal Styles === */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  padding: 24px;
+  border-radius: 8px;
+  min-width: 400px;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.modal-content h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #333;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: #555;
+}
+
+.form-group small {
+  display: block;
+  margin-top: 4px;
+  color: #666;
+  font-size: 12px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+}
+
+.btn-primary {
+  padding: 8px 16px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.btn-secondary {
+  padding: 8px 16px;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.btn-primary:hover {
+  background: #0056b3;
+}
+
+.btn-secondary:hover {
+  background: #545b62;
+}
+
+/* === Save Button Styles === */
+.save-btn {
+  padding: 8px 16px;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.save-btn:hover {
+  background: #218838;
+}
+
+.save-btn:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+}
+
+/* === Edit Note === */
+.edit-note {
+  margin-top: 20px;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border-left: 4px solid #007bff;
+  font-size: 14px;
+  color: #495057;
+}
+
+/* === Responsive Design === */
+@media (max-width: 768px) {
+  .modal-content {
+    min-width: 90%;
+    margin: 10px;
+  }
+
+  .form-field-with-edit {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .edit-field-btn {
+    margin-left: 0;
+    margin-top: 5px;
+  }
+}
+
+/* === Input Field Styles for Modal === */
+.modal-content .form-input,
+.modal-content .form-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: border-color 0.15s ease-in-out;
+}
+
+.modal-content .form-input:focus,
+.modal-content .form-select:focus {
+  border-color: #80bdff;
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* === Action Button Container === */
+.excel-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.upload-btn,
+.primary-btn,
+.save-btn,
+.form-name-input {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.form-name-input {
+  border: 1px solid #ced4da;
+  min-width: 200px;
+}
