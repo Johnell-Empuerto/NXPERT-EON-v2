@@ -3,7 +3,6 @@ import React from "react";
 import { Sidebar, Menu, MenuItem } from "react-pro-sidebar";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faBars,
   faCalendarAlt,
   faRoute,
   faExclamationTriangle,
@@ -11,66 +10,46 @@ import {
   faFileLines,
   faChartBar,
   faUsers,
-  faUser,
-  faGear,
   faClipboardList,
 } from "@fortawesome/free-solid-svg-icons";
 import { Link, useLocation } from "react-router-dom";
 import SidebarTooltip from "./SidebarTooltip";
 import "./Sidebar.css";
 
-const AppSidebar = ({ collapsed, setCollapsed }) => {
+const AppSidebar = ({ onLinkClick }) => {
   const location = useLocation();
+
+  // Helper to handle link clicks and close drawer
+  const handleLinkClick = () => {
+    if (onLinkClick) onLinkClick();
+  };
 
   return (
     <Sidebar
-      collapsed={collapsed}
-      width="260px"
-      collapsedWidth="80px"
       rootStyles={{
         position: "relative",
-        margin: "10px 0 10px 10px",
-        border: "1px solid #efefef",
-        borderRadius: "10px",
-        boxShadow: "rgba(17, 12, 46, 0.15) 0px 48px 100px 0px",
-        transition: "width 300ms",
         backgroundColor: "#ffffff",
-        height: "90dvh",
+        height: "100dvh",
       }}
     >
-      {/* Header / Toggle */}
+      {/* Header - Only Title (No Toggle Button) */}
       <div
         style={{
-          padding: "10px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: collapsed ? "center" : "space-between",
+          padding: "20px 10px",
+          textAlign: "center",
         }}
       >
-        {!collapsed && (
-          <h2
-            style={{
-              color: "#2563eb",
-              fontSize: "18px",
-              margin: 0,
-              whiteSpace: "nowrap",
-            }}
-          >
-            NXPERT EON
-          </h2>
-        )}
-
-        <button
-          onClick={() => setCollapsed(!collapsed)}
+        <h2
           style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: "18px",
+            color: "#2563eb",
+            fontSize: "20px",
+            fontWeight: "700",
+            margin: 0,
+            letterSpacing: "0.5px",
           }}
         >
-          <FontAwesomeIcon icon={faBars} />
-        </button>
+          NXPERT EON
+        </h2>
       </div>
 
       <Menu
@@ -92,10 +71,10 @@ const AppSidebar = ({ collapsed, setCollapsed }) => {
             fontWeight: "bold",
             cursor: "default",
             color: "#2563eb",
-            paddingLeft: collapsed ? "0px" : "16px",
-            fontSize: collapsed ? "0px" : "12px",
+            fontSize: "12px",
             height: "24px",
             lineHeight: "24px",
+            marginTop: "10px",
           }}
           disabled={true}
         >
@@ -104,11 +83,13 @@ const AppSidebar = ({ collapsed, setCollapsed }) => {
 
         <MenuItem
           icon={
-            <SidebarTooltip label="Production Planning" collapsed={collapsed}>
+            <SidebarTooltip label="Production Planning">
               <FontAwesomeIcon icon={faCalendarAlt} />
             </SidebarTooltip>
           }
-          component={<Link to="/dashboard/planning" />}
+          component={
+            <Link to="/dashboard/planning" onClick={handleLinkClick} />
+          }
           active={location.pathname === "/dashboard/planning"}
         >
           Production Planning
@@ -116,11 +97,13 @@ const AppSidebar = ({ collapsed, setCollapsed }) => {
 
         <MenuItem
           icon={
-            <SidebarTooltip label="Process Tracking" collapsed={collapsed}>
+            <SidebarTooltip label="Process Tracking">
               <FontAwesomeIcon icon={faRoute} />
             </SidebarTooltip>
           }
-          component={<Link to="/dashboard/tracking" />}
+          component={
+            <Link to="/dashboard/tracking" onClick={handleLinkClick} />
+          }
           active={location.pathname === "/dashboard/tracking"}
         >
           Process Tracking
@@ -132,10 +115,11 @@ const AppSidebar = ({ collapsed, setCollapsed }) => {
             fontWeight: "bold",
             cursor: "default",
             color: "#2563eb",
-            paddingLeft: collapsed ? "0px" : "16px",
-            fontSize: collapsed ? "0px" : "12px",
+            paddingLeft: "16px",
+            fontSize: "12px",
             height: "24px",
             lineHeight: "24px",
+            marginTop: "10px",
           }}
           disabled={true}
         >
@@ -144,11 +128,11 @@ const AppSidebar = ({ collapsed, setCollapsed }) => {
 
         <MenuItem
           icon={
-            <SidebarTooltip label="Quality & Defects" collapsed={collapsed}>
+            <SidebarTooltip label="Quality & Defects">
               <FontAwesomeIcon icon={faExclamationTriangle} />
             </SidebarTooltip>
           }
-          component={<Link to="/dashboard/quality" />}
+          component={<Link to="/dashboard/quality" onClick={handleLinkClick} />}
           active={location.pathname === "/dashboard/quality"}
         >
           Quality & Defects
@@ -156,14 +140,13 @@ const AppSidebar = ({ collapsed, setCollapsed }) => {
 
         <MenuItem
           icon={
-            <SidebarTooltip
-              label="NG & Rework Management"
-              collapsed={collapsed}
-            >
+            <SidebarTooltip label="NG & Rework Management">
               <FontAwesomeIcon icon={faTools} />
             </SidebarTooltip>
           }
-          component={<Link to="/dashboard/quality/ng-rework" />}
+          component={
+            <Link to="/dashboard/quality/ng-rework" onClick={handleLinkClick} />
+          }
           active={location.pathname === "/dashboard/quality/ng-rework"}
         >
           NG & Rework Management
@@ -175,10 +158,11 @@ const AppSidebar = ({ collapsed, setCollapsed }) => {
             fontWeight: "bold",
             cursor: "default",
             color: "#2563eb",
-            paddingLeft: collapsed ? "0px" : "16px",
-            fontSize: collapsed ? "0px" : "12px",
+            paddingLeft: "16px",
+            fontSize: "12px",
             height: "24px",
             lineHeight: "24px",
+            marginTop: "10px",
           }}
           disabled={true}
         >
@@ -187,14 +171,13 @@ const AppSidebar = ({ collapsed, setCollapsed }) => {
 
         <MenuItem
           icon={
-            <SidebarTooltip
-              label="Daily Production Report (DPR)"
-              collapsed={collapsed}
-            >
+            <SidebarTooltip label="Daily Production Report (DPR)">
               <FontAwesomeIcon icon={faFileLines} />
             </SidebarTooltip>
           }
-          component={<Link to="/dashboard/reports/daily" />}
+          component={
+            <Link to="/dashboard/reports/daily" onClick={handleLinkClick} />
+          }
           active={location.pathname === "/dashboard/reports/daily"}
         >
           Daily Production Report (DPR)
@@ -202,14 +185,13 @@ const AppSidebar = ({ collapsed, setCollapsed }) => {
 
         <MenuItem
           icon={
-            <SidebarTooltip
-              label="Monthly Production Report (MPR)"
-              collapsed={collapsed}
-            >
+            <SidebarTooltip label="Monthly Production Report (MPR)">
               <FontAwesomeIcon icon={faFileLines} />
             </SidebarTooltip>
           }
-          component={<Link to="/dashboard/reports/monthly" />}
+          component={
+            <Link to="/dashboard/reports/monthly" onClick={handleLinkClick} />
+          }
           active={location.pathname === "/dashboard/reports/monthly"}
         >
           Monthly Production Report (MPR)
@@ -217,14 +199,13 @@ const AppSidebar = ({ collapsed, setCollapsed }) => {
 
         <MenuItem
           icon={
-            <SidebarTooltip
-              label="Yearly Production Report (YPR)"
-              collapsed={collapsed}
-            >
+            <SidebarTooltip label="Yearly Production Report (YPR)">
               <FontAwesomeIcon icon={faFileLines} />
             </SidebarTooltip>
           }
-          component={<Link to="/dashboard/reports/yearly" />}
+          component={
+            <Link to="/dashboard/reports/yearly" onClick={handleLinkClick} />
+          }
           active={location.pathname === "/dashboard/reports/yearly"}
         >
           Yearly Production Report (YPR)
@@ -236,10 +217,11 @@ const AppSidebar = ({ collapsed, setCollapsed }) => {
             fontWeight: "bold",
             cursor: "default",
             color: "#2563eb",
-            paddingLeft: collapsed ? "0px" : "16px",
-            fontSize: collapsed ? "0px" : "12px",
+            paddingLeft: "16px",
+            fontSize: "12px",
             height: "24px",
             lineHeight: "24px",
+            marginTop: "10px",
           }}
           disabled={true}
         >
@@ -248,40 +230,44 @@ const AppSidebar = ({ collapsed, setCollapsed }) => {
 
         <MenuItem
           icon={
-            <SidebarTooltip label="Analytics & Insights" collapsed={collapsed}>
+            <SidebarTooltip label="Analytics & Insights">
               <FontAwesomeIcon icon={faChartBar} />
             </SidebarTooltip>
           }
-          component={<Link to="/dashboard/analytics" />}
+          component={
+            <Link to="/dashboard/analytics" onClick={handleLinkClick} />
+          }
           active={location.pathname === "/dashboard/analytics"}
         >
           Analytics & Insights
         </MenuItem>
 
-        {/* Forms Section Title */}
+        {/* Forms */}
         <MenuItem
           style={{
             fontWeight: "bold",
             cursor: "default",
             color: "#2563eb",
-            paddingLeft: collapsed ? "0px" : "16px",
-            fontSize: collapsed ? "0px" : "12px",
+            paddingLeft: "16px",
+            fontSize: "12px",
             height: "24px",
             lineHeight: "24px",
+            marginTop: "10px",
           }}
           disabled={true}
         >
           Forms
         </MenuItem>
 
-        {/* Create Checksheet Template Builder */}
         <MenuItem
           icon={
-            <SidebarTooltip label="Checksheet Templates" collapsed={collapsed}>
+            <SidebarTooltip label="Create Checksheet Templates">
               <FontAwesomeIcon icon={faClipboardList} />
             </SidebarTooltip>
           }
-          component={<Link to="/dashboard/excel-checksheet" />}
+          component={
+            <Link to="/dashboard/excel-checksheet" onClick={handleLinkClick} />
+          }
           active={location.pathname === "/dashboard/excel-checksheet"}
         >
           Create Checksheet Templates
@@ -293,10 +279,11 @@ const AppSidebar = ({ collapsed, setCollapsed }) => {
             fontWeight: "bold",
             cursor: "default",
             color: "#2563eb",
-            paddingLeft: collapsed ? "0px" : "16px",
-            fontSize: collapsed ? "0px" : "12px",
+            paddingLeft: "16px",
+            fontSize: "12px",
             height: "24px",
             lineHeight: "24px",
+            marginTop: "10px",
           }}
           disabled={true}
         >
@@ -305,11 +292,13 @@ const AppSidebar = ({ collapsed, setCollapsed }) => {
 
         <MenuItem
           icon={
-            <SidebarTooltip label="User Master" collapsed={collapsed}>
+            <SidebarTooltip label="User Master">
               <FontAwesomeIcon icon={faUsers} />
             </SidebarTooltip>
           }
-          component={<Link to="/dashboard/usermaster" />}
+          component={
+            <Link to="/dashboard/usermaster" onClick={handleLinkClick} />
+          }
           active={location.pathname === "/dashboard/usermaster"}
         >
           User Master

@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import parse from "html-react-parser";
 import axios from "axios";
 import JSZip from "jszip";
@@ -17,8 +23,25 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   const [formName, setFormName] = useState("");
   const [editingField, setEditingField] = useState(null);
 
+  // Pan & Zoom state
+  const [scale, setScale] = useState(1);
+  const translate = useRef({ x: 0, y: 0 });
+  const isDragging = useRef(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+  const isOverForm = useRef(false);
+
   const fileInputRef = useRef(null);
   const fieldCounter = useRef(0);
+  const scalerRef = useRef(null);
+  const containerRef = useRef(null);
+
+  // Store scale in ref to access latest value in event handlers
+  const scaleRef = useRef(scale);
+
+  // Update ref when scale changes
+  useEffect(() => {
+    scaleRef.current = scale;
+  }, [scale]);
 
   useEffect(() => {
     setHtmlContent(initialHtml);
@@ -31,7 +54,161 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     };
   }, [images]);
 
-  // Extract field placeholders: {{type:label[:decimals][:option1,option2]}}
+  // Update transform function that uses current scale
+  const updateTransform = useCallback(() => {
+    const scaler = scalerRef.current;
+    if (!scaler) return;
+
+    scaler.style.transform = `translate(${translate.current.x}px, ${translate.current.y}px) scale(${scaleRef.current})`;
+  }, []);
+
+  // === PAN & ZOOM LOGIC ===
+  useEffect(() => {
+    const scaler = scalerRef.current;
+    const container = containerRef.current;
+    if (!scaler || !htmlContent || !container) return;
+
+    // Initial fit-to-width
+    const tableWidth = scaler.scrollWidth;
+    const availableWidth = container.clientWidth - 40;
+    let initialScale = 1;
+    if (tableWidth > availableWidth) {
+      initialScale = Math.max(availableWidth / tableWidth, 0.35);
+    }
+    setScale(initialScale);
+    scaleRef.current = initialScale;
+    translate.current = { x: 0, y: 0 };
+    updateTransform();
+
+    // Mouse enter/leave to track if we're over the form
+    const handleMouseEnter = () => {
+      isOverForm.current = true;
+      scaler.style.cursor = "grab";
+    };
+
+    const handleMouseLeave = () => {
+      isOverForm.current = false;
+      isDragging.current = false;
+      scaler.style.cursor = "default";
+    };
+
+    // Wheel zoom (toward mouse pointer)
+    const handleWheel = (e) => {
+      if (!isOverForm.current) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      const currentScale = scaleRef.current;
+      const newScale = Math.max(0.35, Math.min(3, currentScale * delta));
+
+      const rect = scaler.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const dx = (mouseX - translate.current.x) * (1 - newScale / currentScale);
+      const dy = (mouseY - translate.current.y) * (1 - newScale / currentScale);
+
+      translate.current.x += dx;
+      translate.current.y += dy;
+
+      // Update both state and ref
+      setScale(newScale);
+      scaleRef.current = newScale;
+
+      // Apply transform immediately
+      scaler.style.transform = `translate(${translate.current.x}px, ${translate.current.y}px) scale(${newScale})`;
+    };
+
+    // Mouse drag - ignore clicks on form controls
+    const handleMouseDown = (e) => {
+      if (!isOverForm.current) return;
+
+      const target = e.target;
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "SELECT" ||
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "BUTTON" ||
+        target.closest(".edit-field-btn") ||
+        target.closest(".resize-handle")
+      ) {
+        return; // Do not start dragging
+      }
+
+      if (e.button === 0) {
+        isDragging.current = true;
+        dragStart.current = { x: e.clientX, y: e.clientY };
+        scaler.style.cursor = "grabbing";
+        e.preventDefault(); // Prevent text selection
+      }
+    };
+
+    const handleMouseMove = (e) => {
+      if (!isDragging.current || !isOverForm.current) return;
+      translate.current.x += e.clientX - dragStart.current.x;
+      translate.current.y += e.clientY - dragStart.current.y;
+      dragStart.current = { x: e.clientX, y: e.clientY };
+      scaler.style.transform = `translate(${translate.current.x}px, ${translate.current.y}px) scale(${scaleRef.current})`;
+    };
+
+    const handleMouseUp = () => {
+      if (isDragging.current) {
+        isDragging.current = false;
+        scaler.style.cursor = isOverForm.current ? "grab" : "default";
+      }
+    };
+
+    // Touch support
+    let touchStartPos = { x: 0, y: 0 };
+    let isTouchingForm = false;
+
+    const handleTouchStart = (e) => {
+      if (e.touches.length === 1) {
+        isTouchingForm = true;
+        touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+    };
+
+    const handleTouchMove = (e) => {
+      if (!isTouchingForm || e.touches.length !== 1) return;
+      e.preventDefault();
+      translate.current.x += e.touches[0].clientX - touchStartPos.x;
+      translate.current.y += e.touches[0].clientY - touchStartPos.y;
+      touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      scaler.style.transform = `translate(${translate.current.x}px, ${translate.current.y}px) scale(${scaleRef.current})`;
+    };
+
+    const handleTouchEnd = () => {
+      isTouchingForm = false;
+    };
+
+    // Add event listeners
+    scaler.addEventListener("mouseenter", handleMouseEnter);
+    scaler.addEventListener("mouseleave", handleMouseLeave);
+    scaler.addEventListener("wheel", handleWheel, { passive: false });
+    scaler.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    scaler.addEventListener("touchstart", handleTouchStart);
+    scaler.addEventListener("touchmove", handleTouchMove, { passive: false });
+    scaler.addEventListener("touchend", handleTouchEnd);
+
+    return () => {
+      scaler.removeEventListener("mouseenter", handleMouseEnter);
+      scaler.removeEventListener("mouseleave", handleMouseLeave);
+      scaler.removeEventListener("wheel", handleWheel);
+      scaler.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      scaler.removeEventListener("touchstart", handleTouchStart);
+      scaler.removeEventListener("touchmove", handleTouchMove);
+      scaler.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [htmlContent, updateTransform]); // Remove scale from dependencies
+
+  // === FIELD CONFIG EXTRACTION ===
   const extractFieldConfigs = (html) => {
     const regex = /\{\{(\w+):([^:]+)(?::(\d+))?(?::([^}]+))?\}\}/g;
     const matches = [...html.matchAll(regex)];
@@ -47,7 +224,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         : null;
 
       const baseKey = `field_${label.replace(/\s+/g, "_")}`;
-
       configs[baseKey] = {
         originalType: type,
         type,
@@ -68,7 +244,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     }
   }, [htmlContent]);
 
-  // Inject CSS from Excel export
+  // === HTML & IMAGE PROCESSING ===
   const injectExcelCSS = (cssText) => {
     const existing = document.getElementById("excel-css");
     if (existing) existing.remove();
@@ -90,7 +266,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     return doc.body ? doc.body.innerHTML : html;
   };
 
-  // Image handling (ZIP)
   const extractImages = async (zip) => {
     const imageMap = {};
     for (const filename in zip.files) {
@@ -122,7 +297,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     return result;
   };
 
-  // File Upload Handlers
   const handleHtmlUpload = async (file) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -201,7 +375,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     }
   };
 
-  // Field value change
   const handleFieldChange = (name, value, type, label) => {
     setFormData((prev) => ({
       ...prev,
@@ -209,9 +382,8 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     }));
   };
 
-  // Save edited field config
   const handleSaveFieldConfig = (updatedField) => {
-    const baseKey = updatedField.name.split("_").slice(0, -1).join("_"); // remove unique ID
+    const baseKey = updatedField.name.split("_").slice(0, -1).join("_");
 
     setFieldConfigs((prev) => ({
       ...prev,
@@ -221,11 +393,12 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         label: updatedField.label,
         options: updatedField.options,
         decimalPlaces: updatedField.decimalPlaces,
+        // SAVE CHECKBOX VALUES:
+        multiline: updatedField.multiline,
+        autoShrinkFont: updatedField.autoShrinkFont,
       },
     }));
   };
-
-  // HTML Parser with dynamic field injection
   const parseOptions = {
     replace: (node) => {
       if (node.type !== "text") return;
@@ -270,6 +443,9 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
             onChange={handleFieldChange}
             decimalPlaces={config.decimalPlaces ?? decimalPlaces}
             options={config.options ?? options}
+            // PASS THE CHECKBOX VALUES:
+            multiline={config.multiline ?? false}
+            autoShrinkFont={config.autoShrinkFont ?? true}
             onEditField={() =>
               setEditingField({
                 name: fieldName,
@@ -277,6 +453,9 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
                 label: config.label || label,
                 options: config.options ?? options,
                 decimalPlaces: config.decimalPlaces ?? decimalPlaces,
+                // INCLUDE CHECKBOX VALUES FOR EDITOR:
+                multiline: config.multiline ?? false,
+                autoShrinkFont: config.autoShrinkFont ?? true,
               })
             }
           />
@@ -298,7 +477,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     return parse(htmlContent, parseOptions);
   }, [htmlContent, formData, fieldConfigs]);
 
-  // Publish form
   const handlePublish = async () => {
     if (!formName.trim()) return alert("Please enter a form name");
     if (!htmlContent) return alert("No content to publish");
@@ -356,7 +534,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
 
   return (
     <div className="container">
-      {/* Modal */}
       <FieldEditorModal
         field={editingField}
         isOpen={!!editingField}
@@ -407,10 +584,9 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
 
       <div className="preview-area">
         {htmlContent ? (
-          <div className="excel-scope">
-            {parsedContent}
-            <div className="edit-note">
-              <small>💡 Click ⚙️ to edit field type, label, or options.</small>
+          <div className="excel-preview-container" ref={containerRef}>
+            <div className="excel-preview-scaler" ref={scalerRef}>
+              <div className="excel-scope">{parsedContent}</div>
             </div>
           </div>
         ) : (

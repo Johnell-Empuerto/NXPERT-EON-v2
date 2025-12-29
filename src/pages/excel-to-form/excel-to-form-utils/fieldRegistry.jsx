@@ -1,16 +1,30 @@
 // fieldRegistry.js
+
+// Field components will be defined separately
+import TextField from "../excel-to-form-components/TextField";
+import NumberField from "../excel-to-form-components/NumberField";
+import DateField from "../excel-to-form-components/DateField";
+import CheckboxField from "../excel-to-form-components/CheckboxField";
+import DropdownField from "../excel-to-form-components/DropdownField";
+
 export const fieldRegistry = {
   text: {
     label: "Text",
     component: TextField,
-    defaultValue: "",
     supportsHeight: true,
     editorFields: [
+      { name: "label", type: "text", label: "Field Label", required: true },
       {
-        name: "label",
-        type: "text",
-        label: "Field Label",
-        required: true,
+        name: "multiline",
+        type: "checkbox",
+        label: "Multiline (for comments/remarks)",
+        defaultValue: false,
+      },
+      {
+        name: "autoShrinkFont",
+        type: "checkbox",
+        label: "Auto-shrink font to fit text",
+        defaultValue: true,
       },
     ],
   },
@@ -99,10 +113,3 @@ export const getFieldTypeOptions = () => {
     label: config.label,
   }));
 };
-
-// Field components will be defined separately
-import TextField from "../excel-to-form-components/TextField";
-import NumberField from "../excel-to-form-components/NumberField";
-import DateField from "../excel-to-form-components/DateField";
-import CheckboxField from "../excel-to-form-components/CheckboxField";
-import DropdownField from "../excel-to-form-components/DropdownField";

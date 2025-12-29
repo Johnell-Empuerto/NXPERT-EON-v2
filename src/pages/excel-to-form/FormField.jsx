@@ -1,4 +1,3 @@
-// FormField.js
 import React, { useState } from "react";
 import { getFieldTypeInfo } from "./excel-to-form-utils/fieldRegistry";
 
@@ -11,6 +10,9 @@ const FormField = ({
   decimalPlaces,
   options,
   onEditField,
+  // ADD THESE NEW PROPS:
+  multiline = false,
+  autoShrinkFont = true,
 }) => {
   const [height, setHeight] = useState(38);
   const minHeight = 28;
@@ -41,6 +43,9 @@ const FormField = ({
           options={options}
           height={height}
           onHeightChange={handleHeightChange}
+          // PASS THE NEW PROPS:
+          multiline={multiline}
+          autoShrinkFont={autoShrinkFont}
         />
         {fieldInfo.supportsHeight && (
           <div className="resize-handle">
@@ -64,7 +69,16 @@ const FormField = ({
         <button
           className="edit-field-btn"
           onClick={() =>
-            onEditField({ type, label, name, options, decimalPlaces })
+            onEditField({
+              type,
+              label,
+              name,
+              options,
+              decimalPlaces,
+              // PASS CHECKBOX VALUES TO EDITOR:
+              multiline,
+              autoShrinkFont,
+            })
           }
           title="Edit field configuration"
         >

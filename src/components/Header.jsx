@@ -8,12 +8,13 @@ import {
   faUser,
   faSignOutAlt,
   faGear,
+  faBars,
 } from "@fortawesome/free-solid-svg-icons";
 import { useNavigate } from "react-router-dom";
 import "./Header.css";
 import npaxlogo from "../assets/images/logo-npax.png";
 
-const Header = ({ user, handleLogout }) => {
+const Header = ({ user, handleLogout, toggleSidebar }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
@@ -29,7 +30,6 @@ const Header = ({ user, handleLogout }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Function to handle profile click
   const handleProfileClick = () => {
     navigate("/dashboard/profile");
     setDropdownOpen(false);
@@ -46,7 +46,7 @@ const Header = ({ user, handleLogout }) => {
 
   return (
     <header className="app-header">
-      {/* Left - Logo */}
+      {/* Left: Logo */}
       <div className="header-left">
         <button
           onClick={handleDashboardHome}
@@ -56,7 +56,7 @@ const Header = ({ user, handleLogout }) => {
         </button>
       </div>
 
-      {/* Right */}
+      {/* Right: Search, Bell, Profile Dropdown, Hamburger */}
       <div className="header-right">
         {/* Search */}
         <div className="header-search">
@@ -70,7 +70,7 @@ const Header = ({ user, handleLogout }) => {
           <span className="badge">3</span>
         </button>
 
-        {/* User Dropdown */}
+        {/* User Dropdown (Only Image/Icon) */}
         <div className="user-dropdown" ref={dropdownRef}>
           <button
             className="icon-btn user-btn"
@@ -79,15 +79,12 @@ const Header = ({ user, handleLogout }) => {
             {user?.profile_image ? (
               <img
                 src={`http://localhost:5000${user.profile_image}`}
-                alt={user.name}
+                alt="Profile"
                 className="header-profile-img"
               />
             ) : (
               <FontAwesomeIcon icon={faUserCircle} />
             )}
-            <span style={{ marginLeft: "8px", fontSize: "15px" }}>
-              {user?.name}
-            </span>
           </button>
 
           {dropdownOpen && (
@@ -96,12 +93,11 @@ const Header = ({ user, handleLogout }) => {
                 <FontAwesomeIcon icon={faUser} className="dropdown-icon" />
                 Profile
               </button>
-
               <button onClick={handleSettingsClick}>
                 <FontAwesomeIcon icon={faGear} className="dropdown-icon" />
                 Settings
               </button>
-
+              <hr className="dropdown-divider" />
               <button onClick={handleLogout}>
                 <FontAwesomeIcon
                   icon={faSignOutAlt}
@@ -112,6 +108,15 @@ const Header = ({ user, handleLogout }) => {
             </div>
           )}
         </div>
+
+        {/* Hamburger Menu - Always Visible */}
+        <button
+          className="hamburger-btn"
+          onClick={toggleSidebar}
+          aria-label="Toggle sidebar"
+        >
+          <FontAwesomeIcon icon={faBars} size="lg" />
+        </button>
       </div>
     </header>
   );
