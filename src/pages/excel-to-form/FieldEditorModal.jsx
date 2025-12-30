@@ -16,6 +16,7 @@ const FieldEditorModal = ({
   const [label, setLabel] = useState(field?.label || "");
   const [formData, setFormData] = useState({});
   const [showFieldReferences, setShowFieldReferences] = useState(false);
+  const [validationError, setValidationError] = useState(""); // NEW: validation error state
 
   // Range selection state
   const [selectedRangeStart, setSelectedRangeStart] = useState(null);
@@ -52,16 +53,33 @@ const FieldEditorModal = ({
         else if (fieldName === "formula" && field.formula !== undefined) {
           initialData.formula = field.formula;
         }
+        // Handle color fields (NEW)
+        else if (
+          fieldConfig.type === "color" &&
+          field[fieldName] !== undefined
+        ) {
+          initialData[fieldName] = field[fieldName];
+        }
+        // Handle number fields (min, max, decimalPlaces)
+        else if (
+          fieldConfig.type === "number" &&
+          field[fieldName] !== undefined
+        ) {
+          initialData[fieldName] = field[fieldName];
+        }
         // Handle text/number defaults if needed
         else if (field[fieldName] !== undefined) {
           initialData[fieldName] = field[fieldName];
         }
       });
 
+      console.log("Initial form data:", initialData);
       setFormData(initialData);
+      setValidationError(""); // Reset validation error
     } else {
       // Reset when no field (new field?)
       setFormData({});
+      setValidationError("");
     }
   }, [field]);
 
@@ -70,6 +88,32 @@ const FieldEditorModal = ({
       ...prev,
       [fieldName]: value,
     }));
+
+    // Validate min/max when either changes
+    if (fieldName === "min" || fieldName === "max") {
+      validateMinMax(fieldName, value);
+    }
+  };
+
+  // NEW: Validate that min is not higher than max
+  const validateMinMax = (changedField, value) => {
+    const minValue =
+      changedField === "min" ? parseFloat(value) : parseFloat(formData.min);
+    const maxValue =
+      changedField === "max" ? parseFloat(value) : parseFloat(formData.max);
+
+    // Only validate if both values are numbers
+    if (!isNaN(minValue) && !isNaN(maxValue)) {
+      if (minValue > maxValue) {
+        setValidationError(
+          "Minimum value cannot be greater than maximum value"
+        );
+      } else {
+        setValidationError("");
+      }
+    } else {
+      setValidationError("");
+    }
   };
 
   // Range selection handlers
@@ -121,7 +165,19 @@ const FieldEditorModal = ({
     handleFormChange("formula", newFormula);
   };
 
+  // Updated handleSave function with validation
   const handleSave = () => {
+    // Validate min/max before saving
+    const minValue =
+      formData.min !== undefined ? parseFloat(formData.min) : null;
+    const maxValue =
+      formData.max !== undefined ? parseFloat(formData.max) : null;
+
+    if (!isNaN(minValue) && !isNaN(maxValue) && minValue > maxValue) {
+      setValidationError("Minimum value cannot be greater than maximum value");
+      return; // Don't save if validation fails
+    }
+
     const updatedField = {
       ...field,
       type,
@@ -137,16 +193,31 @@ const FieldEditorModal = ({
         : [],
       decimalPlaces:
         type === "number" || type === "calculation"
-          ? parseInt(formData.decimalPlaces, 10) || 2
+          ? parseInt(formData.decimalPlaces, 10) || 0
           : undefined,
       // Save formula for calculation fields
       formula: type === "calculation" ? formData.formula || "" : undefined,
+
+      // NEW: Save min/max validation settings
+      min: formData.min !== undefined ? parseFloat(formData.min) : null,
+      max: formData.max !== undefined ? parseFloat(formData.max) : null,
+
+      // NEW: Save background color settings
+      bgColorInRange: formData.bgColorInRange || "#ffffff",
+      bgColorBelowMin: formData.bgColorBelowMin || "#e3f2fd",
+      bgColorAboveMax: formData.bgColorAboveMax || "#ffebee",
+
+      // NEW: Save border color settings
+      borderColorInRange: formData.borderColorInRange || "#cccccc",
+      borderColorBelowMin: formData.borderColorBelowMin || "#2196f3",
+      borderColorAboveMax: formData.borderColorAboveMax || "#f44336",
     };
 
     onSave(updatedField);
     onClose();
   };
 
+  // Updated renderEditorField function with real-time validation
   const renderEditorField = (fieldConfig) => {
     const key = fieldConfig.name;
     const value =
@@ -168,14 +239,30 @@ const FieldEditorModal = ({
         );
       case "number":
         return (
-          <input
-            type="number"
-            min={fieldConfig.min}
-            max={fieldConfig.max}
-            value={value}
-            onChange={(e) => handleFormChange(key, e.target.value)}
-            className="form-input"
-          />
+          <div>
+            <input
+              type="number"
+              min={fieldConfig.min}
+              max={fieldConfig.max}
+              value={value}
+              onChange={(e) => handleFormChange(key, e.target.value)}
+              className="form-input"
+              style={{
+                borderColor:
+                  (key === "min" || key === "max") && validationError
+                    ? "#f44336"
+                    : undefined,
+              }}
+            />
+            {/* Show validation error for min/max fields */}
+            {(key === "min" || key === "max") && validationError && (
+              <small
+                style={{ color: "#f44336", display: "block", marginTop: "4px" }}
+              >
+                {validationError}
+              </small>
+            )}
+          </div>
         );
       case "checkbox":
         return (
@@ -194,6 +281,56 @@ const FieldEditorModal = ({
             />
             <span>{fieldConfig.label}</span>
           </label>
+        );
+      case "color": // NEW: Color input type
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <input
+              type="color"
+              value={value || "#ffffff"}
+              onChange={(e) => handleFormChange(key, e.target.value)}
+              style={{ width: "50px", height: "30px", cursor: "pointer" }}
+              title="Click to choose color"
+            />
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+              }}
+            >
+              <input
+                type="text"
+                value={value}
+                onChange={(e) => handleFormChange(key, e.target.value)}
+                className="form-input"
+                placeholder={fieldConfig.placeholder}
+                style={{ width: "100%" }}
+              />
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: "#666",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                <span>Preview:</span>
+                <div
+                  style={{
+                    width: "20px",
+                    height: "10px",
+                    backgroundColor: value || fieldConfig.defaultValue,
+                    border: "1px solid #ddd",
+                    borderRadius: "2px",
+                  }}
+                />
+                <span>{value || fieldConfig.defaultValue}</span>
+              </div>
+            </div>
+          </div>
         );
       default:
         return null;
@@ -656,11 +793,31 @@ const FieldEditorModal = ({
             </div>
           ))}
 
+        {/* Show validation error at the bottom */}
+        {validationError && (
+          <div
+            style={{
+              backgroundColor: "#ffebee",
+              color: "#c62828",
+              padding: "10px",
+              borderRadius: "4px",
+              marginBottom: "15px",
+              border: "1px solid #ffcdd2",
+            }}
+          >
+            ⚠️ {validationError}
+          </div>
+        )}
+
         <div className="modal-actions">
           <button onClick={onClose} className="btn-secondary">
             Cancel
           </button>
-          <button onClick={handleSave} className="btn-primary">
+          <button
+            onClick={handleSave}
+            className="btn-primary"
+            disabled={!!validationError} // Disable save button if there's validation error
+          >
             Save Changes
           </button>
         </div>

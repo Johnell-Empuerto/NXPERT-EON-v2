@@ -29,9 +29,9 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   // Multi-sheet support
   const [sheets, setSheets] = useState([]); // [{ id: "sheet001", name: "Sheet 1", html: "..." }, ...]
   const [currentSheetIndex, setCurrentSheetIndex] = useState(0);
+  const [sheetStates, setSheetStates] = useState([]); // [{scale: number, translate: {x: number, y: number}}, ...] or null for uninitialized
 
   // Pan & Zoom state
-  const [scale, setScale] = useState(1);
   const translate = useRef({ x: 0, y: 0 });
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
@@ -40,12 +40,27 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   const fileInputRef = useRef(null);
   const scalerRef = useRef(null);
   const containerRef = useRef(null);
+  const prevSheetIndexRef = useRef(null);
 
-  const scaleRef = useRef(scale);
+  const scaleRef = useRef(1);
 
   useEffect(() => {
-    scaleRef.current = scale;
-  }, [scale]);
+    if (
+      prevSheetIndexRef.current !== null &&
+      prevSheetIndexRef.current !== currentSheetIndex
+    ) {
+      const prevIndex = prevSheetIndexRef.current;
+      setSheetStates((prev) => {
+        const newStates = [...prev];
+        newStates[prevIndex] = {
+          scale: scaleRef.current,
+          translate: { ...translate.current },
+        };
+        return newStates;
+      });
+    }
+    prevSheetIndexRef.current = currentSheetIndex;
+  }, [currentSheetIndex]);
 
   useEffect(() => {
     setHtmlContent(initialHtml);
@@ -63,21 +78,38 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     scaler.style.transform = `translate(${translate.current.x}px, ${translate.current.y}px) scale(${scaleRef.current})`;
   }, []);
 
-  // === PAN & ZOOM LOGIC (unchanged) ===
+  // === PAN & ZOOM LOGIC (updated for per-sheet state) ===
   useEffect(() => {
     const scaler = scalerRef.current;
     const container = containerRef.current;
     if (!scaler || !htmlContent || !container) return;
 
+    // Load saved state or compute initial
+    let savedState = sheetStates[currentSheetIndex];
+    let initialScale = 1;
     const tableWidth = scaler.scrollWidth;
     const availableWidth = container.clientWidth - 40;
-    let initialScale = 1;
     if (tableWidth > availableWidth) {
       initialScale = Math.max(availableWidth / tableWidth, 0.35);
     }
-    setScale(initialScale);
-    scaleRef.current = initialScale;
-    translate.current = { x: 0, y: 0 };
+
+    if (savedState) {
+      scaleRef.current = savedState.scale;
+      translate.current = { ...savedState.translate };
+    } else {
+      scaleRef.current = initialScale;
+      translate.current = { x: 0, y: 0 };
+      // Save initial state
+      setSheetStates((prev) => {
+        const newStates = [...prev];
+        newStates[currentSheetIndex] = {
+          scale: initialScale,
+          translate: { x: 0, y: 0 },
+        };
+        return newStates;
+      });
+    }
+
     updateTransform();
 
     const handleMouseEnter = () => {
@@ -109,7 +141,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       translate.current.x += dx;
       translate.current.y += dy;
 
-      setScale(newScale);
       scaleRef.current = newScale;
       scaler.style.transform = `translate(${translate.current.x}px, ${translate.current.y}px) scale(${newScale})`;
     };
@@ -196,7 +227,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       scaler.removeEventListener("touchmove", handleTouchMove);
       scaler.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [htmlContent, updateTransform]);
+  }, [htmlContent, currentSheetIndex, sheetStates, updateTransform]);
 
   // === FIELD CONFIG EXTRACTION (FIXED) ===
   const extractFieldConfigs = (html, sheetIndex = 0) => {
@@ -410,7 +441,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     if (sheetFiles.length === 0)
       throw new Error("No sheet files found in ZIP.");
 
-    // Sort sheets by name to ensure consistent order (sheet001, sheet002, etc.)
+    // Sort sheets by name
     sheetFiles.sort((a, b) => a.name.localeCompare(b.name));
 
     // Extract real sheet names from tabstrip.html
@@ -437,7 +468,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     // === COLLECT ALL CSS FROM ALL SOURCES ===
     let allCss = "";
 
-    // 1. Main stylesheet.css (global styles)
+    // 1. Main stylesheet.css
     const cssFile = files.find((f) =>
       f.name.toLowerCase().includes("stylesheet.css")
     );
@@ -452,13 +483,34 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       const sheetFile = sheetFiles[i];
       let html = await sheetFile.async("text");
 
-      // Extract and collect inline <style> tags from this sheet
+      // === NEW: TRIM HTML AT {{END}} ===
+      const endMarkerIndex = html.indexOf("{{END}}");
+      if (endMarkerIndex !== -1) {
+        // Find the end of the current table row containing {{END}}
+        const htmlBeforeEnd = html.substring(0, endMarkerIndex);
+
+        // Find the closing </tr> tag after {{END}}
+        const afterEnd = html.substring(endMarkerIndex);
+        const trCloseIndex = afterEnd.indexOf("</tr>");
+
+        if (trCloseIndex !== -1) {
+          // Remove everything from the start of the row containing {{END}}
+          // We need to find the opening <tr> for this row
+          const lastTrOpenIndex = htmlBeforeEnd.lastIndexOf("<tr");
+          if (lastTrOpenIndex !== -1) {
+            // Keep everything up to this <tr> opening tag
+            html = html.substring(0, lastTrOpenIndex);
+          }
+        }
+      }
+
+      // Extract and collect inline <style> tags
       const doc = new DOMParser().parseFromString(html, "text/html");
       doc.querySelectorAll("head style").forEach((styleTag) => {
         allCss += styleTag.innerHTML + "\n\n";
       });
 
-      // Clean body HTML (remove <head> styles since we're injecting them globally)
+      // Clean body HTML
       html = doc.body ? doc.body.innerHTML : html;
 
       loadedSheets.push({
@@ -482,6 +534,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     }));
 
     setSheets(processedSheets);
+    setSheetStates(Array(processedSheets.length).fill(null));
     setCurrentSheetIndex(0);
     setHtmlContent(processedSheets[0]?.html || "");
   };
@@ -490,6 +543,27 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       let content = e.target.result;
+
+      // === NEW: TRIM HTML AT {{END}} ===
+      const endMarkerIndex = content.indexOf("{{END}}");
+      if (endMarkerIndex !== -1) {
+        // Find the end of the current table row containing {{END}}
+        const contentBeforeEnd = content.substring(0, endMarkerIndex);
+
+        // Find the closing </tr> tag after {{END}}
+        const afterEnd = content.substring(endMarkerIndex);
+        const trCloseIndex = afterEnd.indexOf("</tr>");
+
+        if (trCloseIndex !== -1) {
+          // Remove everything from the start of the row containing {{END}}
+          const lastTrOpenIndex = contentBeforeEnd.lastIndexOf("<tr");
+          if (lastTrOpenIndex !== -1) {
+            // Keep everything up to this <tr> opening tag
+            content = content.substring(0, lastTrOpenIndex);
+          }
+        }
+      }
+
       if (content.includes("<frameset") || content.includes("<frame src")) {
         setError(
           "⚠️ Please upload the individual sheet file (e.g., sheet001.htm), not the main workbook."
@@ -497,6 +571,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         setIsUploading(false);
         return;
       }
+
       content = processHtml(content);
 
       try {
@@ -511,14 +586,16 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
           setFieldInstances(result.instances);
           setFieldPositions(assignFieldPositions(result.instances));
 
-          setSheets([
+          const processedSheets = [
             {
               id: "single",
               name: file.name.replace(/\.[^/.]+$/, ""),
               html: content,
               index: 0,
             },
-          ]);
+          ];
+          setSheets(processedSheets);
+          setSheetStates(Array(processedSheets.length).fill(null));
           setCurrentSheetIndex(0);
           setHtmlContent(content);
           setError(null);
@@ -545,6 +622,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     setIsUploading(true);
     setHtmlContent("");
     setSheets([]);
+    setSheetStates([]);
     setImages({});
     setFormData({});
     setFieldConfigs({});
@@ -591,6 +669,14 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         multiline: updatedField.multiline,
         autoShrinkFont: updatedField.autoShrinkFont,
         formula: updatedField.formula,
+        min: updatedField.min,
+        max: updatedField.max,
+        bgColorInRange: updatedField.bgColorInRange,
+        bgColorBelowMin: updatedField.bgColorBelowMin,
+        bgColorAboveMax: updatedField.bgColorAboveMax,
+        borderColorInRange: updatedField.borderColorInRange,
+        borderColorBelowMin: updatedField.borderColorBelowMin,
+        borderColorAboveMax: updatedField.borderColorAboveMax,
       },
     }));
   };
@@ -659,6 +745,14 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
             allFormData={formData}
             fieldValueMap={createFieldValueMap}
             allFields={getAllFieldsInfo}
+            min={config.min}
+            max={config.max}
+            bgColorInRange={config.bgColorInRange}
+            bgColorBelowMin={config.bgColorBelowMin}
+            bgColorAboveMax={config.bgColorAboveMax}
+            borderColorInRange={config.borderColorInRange}
+            borderColorBelowMin={config.borderColorBelowMin}
+            borderColorAboveMax={config.borderColorAboveMax}
             onEditField={() =>
               setEditingField({
                 ...config,

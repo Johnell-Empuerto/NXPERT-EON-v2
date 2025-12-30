@@ -1,4 +1,4 @@
-// CalculationField.js - COMPLETE FIXED VERSION
+// CalculationField.js - SIMPLIFIED VERSION
 import React, { useState, useEffect } from "react";
 
 const CalculationField = ({
@@ -9,7 +9,7 @@ const CalculationField = ({
   height = 38,
   onHeightChange,
   formula = "",
-  decimalPlaces = 2,
+  decimalPlaces = 0,
   formData = {},
   fieldConfigs = {},
   fieldPosition = "",
@@ -17,19 +17,15 @@ const CalculationField = ({
   allFields = [],
 }) => {
   const [calculatedValue, setCalculatedValue] = useState("");
-  const [error, setError] = useState("");
-  const [validationErrors, setValidationErrors] = useState([]);
+  const [hasError, setHasError] = useState(false);
 
   // Parse Excel-style range notation (e.g., S1F4:S1F13)
   const parseRange = (rangeStr) => {
-    // Remove all spaces from range string
     const cleanRangeStr = rangeStr.replace(/\s/g, "");
     const match = cleanRangeStr.match(/^S(\d+)F(\d+):S(\d+)F(\d+)$/i);
     if (!match) return null;
 
     const [, sheet1, startField, sheet2, endField] = match.map(Number);
-
-    // Only support single sheet for now
     if (sheet1 !== sheet2) return null;
 
     const fieldRefs = [];
@@ -39,13 +35,9 @@ const CalculationField = ({
     return fieldRefs;
   };
 
-  // Parse Excel function (e.g., SUM(S1F4:S1F13) or SUM (S1F4, S1F5, S1F6))
+  // Parse Excel function (e.g., SUM(S1F4:S1F13))
   const parseExcelFunction = (formulaStr) => {
-    // Normalize the formula - replace multiple spaces with single space
     const normalizedFormula = formulaStr.replace(/\s+/g, " ").trim();
-
-    // Match function with optional spaces before/after parentheses
-    // Supports: SUM(S1F6:S1F11), SUM (S1F6:S1F11), SUM( S1F6:S1F11 ), etc.
     const functionMatch = normalizedFormula.match(
       /^(SUM|AVERAGE|MIN|MAX|COUNT)\s*\(\s*(.+?)\s*\)$/i
     );
@@ -54,26 +46,19 @@ const CalculationField = ({
 
     const [, func, args] = functionMatch;
     const funcUpper = func.toUpperCase();
-
-    // Parse arguments - clean up spaces but keep colons for ranges
     const cleanArgs = args.replace(/\s/g, "");
     const argList = cleanArgs.split(",").filter((arg) => arg.length > 0);
 
     const allFieldRefs = [];
     argList.forEach((arg) => {
-      // Check if it's a range
       if (arg.includes(":")) {
         const rangeFields = parseRange(arg);
         if (rangeFields) {
           allFieldRefs.push(...rangeFields);
-        } else {
-          // Try to parse as individual field
-          if (arg.match(/^S\d+F\d+$/i)) {
-            allFieldRefs.push(arg.toUpperCase());
-          }
+        } else if (arg.match(/^S\d+F\d+$/i)) {
+          allFieldRefs.push(arg.toUpperCase());
         }
       } else if (arg.match(/^S\d+F\d+$/i)) {
-        // Individual field
         allFieldRefs.push(arg.toUpperCase());
       }
     });
@@ -81,7 +66,6 @@ const CalculationField = ({
     return {
       function: funcUpper,
       fieldRefs: allFieldRefs,
-      originalArgs: args,
     };
   };
 
@@ -110,142 +94,20 @@ const CalculationField = ({
     }
   };
 
-  // Validate formula before calculation
-  const validateFormula = (formulaStr) => {
-    const errors = [];
-
-    if (!formulaStr || formulaStr.trim() === "") {
-      errors.push("Formula is empty");
-      return errors;
-    }
-
-    // Extract all field references (individual and ranges)
-    const individualRefs = (formulaStr.match(/S\d+F\d+/gi) || []).map((ref) =>
-      ref.toUpperCase()
-    );
-    const rangeMatches = (
-      formulaStr.match(/S\d+F\d+\s*:\s*S\d+F\d+/gi) || []
-    ).map((ref) => ref.toUpperCase());
-
-    let allFieldRefs = [...individualRefs];
-
-    // Parse ranges
-    rangeMatches.forEach((range) => {
-      const rangeFields = parseRange(range);
-      if (rangeFields) {
-        allFieldRefs.push(...rangeFields);
-      } else {
-        errors.push(`Invalid range format: ${range}. Use S1F4:S1F13 format.`);
-      }
-    });
-
-    // Parse Excel functions
-    const excelFunc = parseExcelFunction(formulaStr);
-    if (excelFunc) {
-      allFieldRefs.push(...excelFunc.fieldRefs);
-    }
-
-    // Remove duplicates
-    allFieldRefs = [...new Set(allFieldRefs)];
-
-    // Check each field reference
-    allFieldRefs.forEach((ref) => {
-      // Find the field in allFields to get its type
-      const fieldInfo = allFields.find(
-        (f) => f.position.toUpperCase() === ref.toUpperCase()
-      );
-
-      if (!fieldInfo) {
-        errors.push(`Field ${ref} not found`);
-        return;
-      }
-
-      // Check if field type is compatible with calculations
-      const incompatibleTypes = ["text", "date", "checkbox", "dropdown"];
-      if (incompatibleTypes.includes(fieldInfo.type)) {
-        errors.push(
-          `Field ${ref} (${fieldInfo.label}) is type "${fieldInfo.type}" - cannot be used in calculations`
-        );
-      }
-
-      // Get the value to check if it's numeric
-      const fieldValue =
-        fieldValueMap[ref.toUpperCase()] ||
-        fieldValueMap[ref.toLowerCase()] ||
-        (fieldInfo.value !== undefined ? fieldInfo.value : null);
-
-      if (
-        fieldValue !== null &&
-        fieldValue !== undefined &&
-        fieldValue !== ""
-      ) {
-        const numValue = parseFloat(fieldValue);
-        if (isNaN(numValue) && fieldInfo.type === "number") {
-          errors.push(
-            `Field ${ref} (${fieldInfo.label}) has non-numeric value: "${fieldValue}"`
-          );
-        }
-      }
-    });
-
-    // Check for invalid operators or syntax - more permissive regex
-    // Allow spaces, field references, numbers, and common operators
-    let cleanedFormula = formulaStr.replace(/S\d+F\d+/gi, "1"); // Replace field refs with test value
-    if (excelFunc) {
-      cleanedFormula = cleanedFormula.replace(
-        new RegExp(`^${excelFunc.function}\\s*\\(`, "i"),
-        "("
-      );
-    }
-    const cleanedFormulaNoSpaces = cleanedFormula.replace(/\s/g, "");
-    const validOperators = /^[0-9+\-*/().,:]+$/;
-    if (
-      cleanedFormulaNoSpaces.length > 0 &&
-      !validOperators.test(cleanedFormulaNoSpaces)
-    ) {
-      errors.push("Formula contains invalid characters or operators");
-    }
-
-    // Check for division by zero
-    if (formulaStr.includes("/0")) {
-      errors.push("Formula may cause division by zero");
-    }
-
-    // Check for unbalanced parentheses
-    const openParens = (formulaStr.match(/\(/g) || []).length;
-    const closeParens = (formulaStr.match(/\)/g) || []).length;
-    if (openParens !== closeParens) {
-      errors.push("Unbalanced parentheses in formula");
-    }
-
-    return errors;
-  };
-
-  // Parse and evaluate the formula
+  // Evaluate the formula
   const evaluateFormula = (formulaStr) => {
     if (!formulaStr || formulaStr.trim() === "") return "";
 
     try {
-      // Validate formula first
-      const validationErrors = validateFormula(formulaStr);
-      if (validationErrors.length > 0) {
-        setValidationErrors(validationErrors);
-        return "Validation Error";
-      } else {
-        setValidationErrors([]);
-      }
-
       // Check for Excel functions
       const excelFunc = parseExcelFunction(formulaStr);
       if (excelFunc) {
-        // Handle Excel function
         const values = excelFunc.fieldRefs.map((ref) => {
           const fieldValue =
             fieldValueMap[ref.toUpperCase()] ||
             fieldValueMap[ref.toLowerCase()] ||
             0;
 
-          // Try to get from allFields if not in fieldValueMap
           if (
             fieldValue === 0 ||
             fieldValue === null ||
@@ -271,10 +133,8 @@ const CalculationField = ({
         return formatWithDecimals(result, decimalPlaces);
       }
 
-      // Handle simple range notation without function (e.g., S1F4:S1F13)
+      // Handle simple range notation
       let expression = formulaStr;
-
-      // Replace ranges with sum (if no function specified)
       const rangeMatches = formulaStr.match(/S\d+F\d+\s*:\s*S\d+F\d+/gi) || [];
       rangeMatches.forEach((range) => {
         const rangeFields = parseRange(range);
@@ -301,7 +161,7 @@ const CalculationField = ({
         }
       });
 
-      // Replace individual field references with actual values
+      // Replace individual field references
       const individualRefs = expression.match(/S\d+F\d+/gi) || [];
       individualRefs.forEach((ref) => {
         const fieldValue =
@@ -309,7 +169,6 @@ const CalculationField = ({
           fieldValueMap[ref.toLowerCase()] ||
           0;
 
-        // Try to get from allFields if not in fieldValueMap
         let finalValue = fieldValue;
         if (
           fieldValue === 0 ||
@@ -336,47 +195,36 @@ const CalculationField = ({
         }
       });
 
-      // Remove any remaining spaces
       expression = expression.replace(/\s/g, "");
-
-      // Evaluate the expression safely
       const result = safeEval(expression);
 
-      // Format with decimal places
       if (typeof result === "number") {
         return formatWithDecimals(result, decimalPlaces);
       }
 
       return result.toString();
     } catch (err) {
-      console.error("Formula evaluation error:", err);
-      setError(`Formula error: ${err.message}`);
+      console.error("Formula error:", err);
+      setHasError(true);
       return "Error";
     }
   };
 
-  // Format number with specified decimal places
+  // Format number with decimal places
   const formatWithDecimals = (number, decimals) => {
-    if (decimals === undefined || decimals === null) {
-      decimals = 2;
-    }
-
     const num = typeof number === "string" ? parseFloat(number) : number;
-    if (isNaN(num)) return "0.00";
+    if (isNaN(num)) return "0";
 
-    return num.toFixed(decimals);
+    return decimals === 0 ? Math.round(num).toString() : num.toFixed(decimals);
   };
 
-  // Safe evaluation function
+  // Safe evaluation
   const safeEval = (expression) => {
-    // Allow numbers, decimal points, and basic operators
     const sanitized = expression.replace(/[^0-9+\-*/().]/g, "");
     try {
-      // Use Function constructor for safe evaluation
       return Function(`"use strict"; return (${sanitized})`)();
     } catch (err) {
-      console.error("Safe eval error:", err, "for expression:", expression);
-      throw new Error(`Invalid expression: ${expression}`);
+      throw new Error(`Invalid expression`);
     }
   };
 
@@ -384,19 +232,42 @@ const CalculationField = ({
     if (formula) {
       const result = evaluateFormula(formula);
       setCalculatedValue(result);
+      setHasError(result === "Error");
 
       if (onChange && result !== value) {
         onChange(name, result, "calculation", label);
       }
     } else {
       setCalculatedValue("");
-      setValidationErrors([]);
-      setError("");
+      setHasError(false);
     }
   }, [formula, formData, decimalPlaces, fieldValueMap, allFields]);
 
+  // Create a comprehensive tooltip
+  const getTooltipText = () => {
+    let tooltip = label || "";
+
+    if (formula) {
+      tooltip += `\n\nFormula: ${formula}`;
+    }
+
+    if (fieldPosition) {
+      tooltip += `\nPosition: ${fieldPosition}`;
+    }
+
+    if (decimalPlaces !== undefined && decimalPlaces !== null) {
+      tooltip += `\nDecimal Places: ${decimalPlaces}`;
+    }
+
+    if (hasError) {
+      tooltip += "\n\n⚠️ Formula calculation error";
+    }
+
+    return tooltip.trim();
+  };
+
   return (
-    <div className="calculation-field">
+    <div className="calculation-field" style={{ position: "relative" }}>
       <input
         type="text"
         value={calculatedValue}
@@ -405,65 +276,35 @@ const CalculationField = ({
         placeholder={label}
         style={{
           height: `${height}px`,
-          backgroundColor:
-            validationErrors.length > 0 || error ? "#ffe6e6" : "#f5f5f5",
+          backgroundColor: hasError ? "#ffe6e6" : "#f5f5f5",
           cursor: "not-allowed",
-          borderColor:
-            validationErrors.length > 0 || error ? "#ff6b6b" : "#ccc",
+          borderColor: hasError ? "#ff6b6b" : "#ccc",
+          padding: "0 10px",
+          boxSizing: "border-box",
+          overflow: "hidden",
+          textOverflow: "clip",
+          whiteSpace: "nowrap",
+          outline: "none",
         }}
+        title={getTooltipText()} // Tooltip with all info
       />
 
-      {/* Validation Errors */}
-      {validationErrors.length > 0 && (
-        <div className="validation-errors">
-          <strong>Formula Validation Errors:</strong>
-          {validationErrors.map((err, index) => (
-            <div key={index}>• {err}</div>
-          ))}
-        </div>
-      )}
-
-      {/* Evaluation Error */}
-      {error && !validationErrors.length && (
-        <div className="calculation-error">
-          <strong>Calculation Error:</strong> {error}
-        </div>
-      )}
-
-      <div className="calculation-info">
-        {formula ? `Formula: ${formula}` : "No formula set"}
-        {fieldPosition && ` (${fieldPosition})`}
-        {decimalPlaces !== undefined && ` | Decimals: ${decimalPlaces}`}
-      </div>
-
-      {/* Excel Functions Info */}
-      {formula && (
-        <div className="excel-functions-info">
-          <strong>Supported Functions:</strong>
-          <div>
-            • <code>SUM(range)</code> - Sum of values (e.g.,{" "}
-            <code>SUM(S1F2:S1F16)</code> or <code>SUM (S1F2:S1F16)</code>)
-          </div>
-          <div>
-            • <code>AVERAGE(range)</code> - Average of values
-          </div>
-          <div>
-            • <code>MIN(range)</code> - Minimum value
-          </div>
-          <div>
-            • <code>MAX(range)</code> - Maximum value
-          </div>
-          <div>
-            • <code>COUNT(range)</code> - Count of numeric values
-          </div>
-          <div style={{ marginTop: "4px", fontStyle: "italic" }}>
-            Note: Supports spaces in formulas: <code>SUM (S1F6:S1F11)</code>
-          </div>
-          <div style={{ marginTop: "4px", fontStyle: "italic" }}>
-            Also supports: <code>S1F2:S1F16</code> without function to sum the
-            range
-          </div>
-        </div>
+      {/* Error indicator - small red dot */}
+      {hasError && (
+        <div
+          style={{
+            position: "absolute",
+            top: "-4px",
+            right: "-4px",
+            width: "8px",
+            height: "8px",
+            borderRadius: "50%",
+            backgroundColor: "#ff6b6b",
+            border: "1px solid white",
+            zIndex: 10,
+          }}
+          title="Formula calculation error"
+        />
       )}
     </div>
   );

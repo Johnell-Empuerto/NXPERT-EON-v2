@@ -17,7 +17,15 @@ const FormField = ({
   fieldPosition = "",
   allFormData = {},
   fieldValueMap = {},
-  allFields = [], // NEW: Add this prop
+  allFields = [],
+  min = null,
+  max = null,
+  bgColorInRange = "#ffffff",
+  bgColorBelowMin = "#e3f2fd",
+  bgColorAboveMax = "#ffebee",
+  borderColorInRange = "#cccccc",
+  borderColorBelowMin = "#2196f3",
+  borderColorAboveMax = "#f44336",
 }) => {
   const [height, setHeight] = useState(38);
   const minHeight = 28;
@@ -56,6 +64,14 @@ const FormField = ({
           formData={allFormData}
           fieldValueMap={fieldValueMap}
           allFields={allFields}
+          min={min}
+          max={max}
+          bgColorInRange={bgColorInRange}
+          bgColorBelowMin={bgColorBelowMin}
+          bgColorAboveMax={bgColorAboveMax}
+          borderColorInRange={borderColorInRange}
+          borderColorBelowMin={borderColorBelowMin}
+          borderColorAboveMax={borderColorAboveMax}
         />
         {fieldInfo.supportsHeight && (
           <div className="resize-handle">
@@ -90,6 +106,14 @@ const FormField = ({
               autoShrinkFont,
               formula,
               fieldPosition,
+              min,
+              max,
+              bgColorInRange,
+              bgColorBelowMin,
+              bgColorAboveMax,
+              borderColorInRange,
+              borderColorBelowMin,
+              borderColorAboveMax,
             })
           }
           title="Edit field configuration"

@@ -6,11 +6,23 @@ const NumberField = ({
   name,
   value = null,
   onChange,
-  decimalPlaces, // can be number (e.g. 2) or undefined/null for integer-only
+  decimalPlaces,
   height = 38,
   onHeightChange,
+  // VALIDATION SETTINGS - All optional
+  min = null,
+  max = null,
+  // FULLY CUSTOMIZABLE COLORS - All with defaults
+  bgColorInRange = "#ffffff",
+  bgColorBelowMin = "#e3f2fd",
+  bgColorAboveMax = "#ffebee",
+  borderColorInRange = "#cccccc",
+  borderColorBelowMin = "#2196f3",
+  borderColorAboveMax = "#f44336",
 }) => {
   const [displayValue, setDisplayValue] = useState("");
+  const [isValid, setIsValid] = useState(true);
+  const [validationStatus, setValidationStatus] = useState("inRange"); // 'inRange', 'belowMin', 'aboveMax'
   const inputRef = useRef(null);
 
   const minFontSize = 8;
@@ -19,25 +31,52 @@ const NumberField = ({
 
   const allowsDecimal = decimalPlaces !== undefined && decimalPlaces !== null;
 
-  // Sync displayValue with incoming value
+  // Sync displayValue with incoming value and validate
   useEffect(() => {
     if (value === undefined || value === null || value === "") {
       setDisplayValue("");
+      setIsValid(true);
+      setValidationStatus("inRange");
       return;
     }
 
     const num = typeof value === "number" ? value : parseFloat(value);
     if (isNaN(num)) {
       setDisplayValue("");
+      setIsValid(false);
+      setValidationStatus("inRange");
       return;
     }
 
+    // Format display value
+    let formatted;
     if (allowsDecimal) {
-      setDisplayValue(num.toFixed(decimalPlaces));
+      formatted = num.toFixed(decimalPlaces);
     } else {
-      setDisplayValue(Math.round(num).toString()); // integer only
+      formatted = Math.round(num).toString();
     }
-  }, [value, decimalPlaces, allowsDecimal]);
+    setDisplayValue(formatted);
+
+    // Validate min/max
+    validateNumber(num);
+  }, [value, decimalPlaces, allowsDecimal, min, max]);
+
+  // Validate number against min/max constraints
+  const validateNumber = (num) => {
+    let isValidValue = true;
+    let status = "inRange";
+
+    if (min !== null && num < min) {
+      isValidValue = false;
+      status = "belowMin";
+    } else if (max !== null && num > max) {
+      isValidValue = false;
+      status = "aboveMax";
+    }
+
+    setIsValid(isValidValue);
+    setValidationStatus(status);
+  };
 
   // Auto-resize font
   useEffect(() => {
@@ -80,33 +119,85 @@ const NumberField = ({
     input.style.fontSize = `${fontSize}px`;
   }, [displayValue, label, height]);
 
+  // Determine background color based on validation status
+  const getBackgroundColor = () => {
+    switch (validationStatus) {
+      case "belowMin":
+        return bgColorBelowMin;
+      case "aboveMax":
+        return bgColorAboveMax;
+      case "inRange":
+      default:
+        return bgColorInRange;
+    }
+  };
+
+  // Determine border color based on validation status
+  const getBorderColor = () => {
+    switch (validationStatus) {
+      case "belowMin":
+        return borderColorBelowMin;
+      case "aboveMax":
+        return borderColorAboveMax;
+      case "inRange":
+      default:
+        return borderColorInRange;
+    }
+  };
+
+  // Get validation status text for indicator
+  const getValidationIndicator = () => {
+    switch (validationStatus) {
+      case "belowMin":
+        return {
+          symbol: "<",
+          color: borderColorBelowMin,
+          title: `Below minimum (${min})`,
+        };
+      case "aboveMax":
+        return {
+          symbol: ">",
+          color: borderColorAboveMax,
+          title: `Above maximum (${max})`,
+        };
+      default:
+        return null;
+    }
+  };
+
   const handleChange = (e) => {
     const val = e.target.value;
 
     // Allow empty, minus sign, and digits
     let regex;
     if (allowsDecimal) {
-      // Allow one decimal point
       regex = /^-?\d*\.?\d*$/;
     } else {
-      // Integer only: no decimal point allowed
       regex = /^-?\d*$/;
     }
 
     if (val === "" || val === "-" || regex.test(val)) {
       setDisplayValue(val);
 
-      // Convert to number or null
       const num = val === "" || val === "-" ? null : parseFloat(val);
-      onChange(name, isNaN(num) ? null : num, "number", label);
+
+      if (val === "" || val === "-" || isNaN(num)) {
+        onChange(name, null, "number", label);
+        setIsValid(true);
+        setValidationStatus("inRange");
+      } else {
+        onChange(name, num, "number", label);
+        validateNumber(num);
+      }
     }
-    // If invalid, do nothing (don't update displayValue)
   };
 
   const handleBlur = () => {
     if (displayValue === "" || displayValue === "-" || displayValue === ".") {
       setDisplayValue("");
       onChange(name, null, "number", label);
+      setIsValid(true);
+      setValidationStatus("inRange");
       return;
     }
 
@@ -114,42 +205,130 @@ const NumberField = ({
     if (isNaN(num)) {
       setDisplayValue("");
       onChange(name, null, "number", label);
+      setIsValid(true);
+      setValidationStatus("inRange");
       return;
     }
 
     if (allowsDecimal) {
-      // Format with fixed decimal places
       const formatted = num.toFixed(decimalPlaces);
       setDisplayValue(formatted);
-      onChange(name, parseFloat(formatted), "number", label);
+      const finalNum = parseFloat(formatted);
+      onChange(name, finalNum, "number", label);
+      validateNumber(finalNum);
     } else {
-      // Integer only: round and remove decimals
       num = Math.round(num);
       setDisplayValue(num.toString());
       onChange(name, num, "number", label);
+      validateNumber(num);
     }
   };
 
+  // Get comprehensive tooltip text
+  const getTooltipText = () => {
+    let tooltip = label || "";
+
+    // Add validation info if min/max is set
+    if (min !== null || max !== null) {
+      tooltip += "\n\n";
+      tooltip += "Validation Range:\n";
+      if (min !== null) tooltip += `• Min: ${min}\n`;
+      if (max !== null) tooltip += `• Max: ${max}\n`;
+    }
+
+    // Add current validation status if invalid
+    if (!isValid) {
+      tooltip += "\n";
+      if (validationStatus === "belowMin") {
+        tooltip += `⚠️ Current value is below minimum (${min})`;
+      } else if (validationStatus === "aboveMax") {
+        tooltip += `⚠️ Current value is above maximum (${max})`;
+      }
+    }
+
+    // Add decimal places info
+    if (decimalPlaces !== undefined && decimalPlaces !== null) {
+      tooltip += `\n\nDecimal Places: ${decimalPlaces}`;
+      if (decimalPlaces === 0) {
+        tooltip += " (Integer only)";
+      }
+    }
+
+    return tooltip.trim();
+  };
+
+  // Get input title for validation feedback
+  const getInputTitle = () => {
+    if (!isValid) {
+      if (validationStatus === "belowMin") {
+        return `Value is below minimum (${min})`;
+      } else if (validationStatus === "aboveMax") {
+        return `Value is above maximum (${max})`;
+      }
+    }
+    return label || "";
+  };
+
+  const indicator = getValidationIndicator();
+
   return (
-    <input
-      ref={inputRef}
-      type="text"
-      inputMode={allowsDecimal ? "decimal" : "numeric"}
-      placeholder={label}
-      className="form-input"
-      style={{
-        height: `${height}px`,
-        fontSize: `${defaultFontSize}px`,
-        padding: "0 10px",
-        boxSizing: "border-box",
-        overflow: "hidden",
-        textOverflow: "clip",
-        whiteSpace: "nowrap",
-      }}
-      value={displayValue}
-      onChange={handleChange}
-      onBlur={handleBlur}
-    />
+    <div className="number-field-container" style={{ position: "relative" }}>
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode={allowsDecimal ? "decimal" : "numeric"}
+        placeholder={label}
+        className="form-input"
+        style={{
+          height: `${height}px`,
+          fontSize: `${defaultFontSize}px`,
+          padding: "0 10px",
+          boxSizing: "border-box",
+          overflow: "hidden",
+          textOverflow: "clip",
+          whiteSpace: "nowrap",
+          backgroundColor: getBackgroundColor(),
+          border: `2px solid ${getBorderColor()}`,
+          transition: "all 0.3s ease",
+          outline: "none",
+        }}
+        value={displayValue}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        title={getTooltipText()} // Show comprehensive tooltip
+      />
+
+      {/* Validation indicator - shows only as small icon */}
+      {indicator && (
+        <div
+          style={{
+            position: "absolute",
+            top: "-8px",
+            right: "-8px",
+            width: "18px",
+            height: "18px",
+            borderRadius: "50%",
+            backgroundColor: indicator.color,
+            color: "white",
+            fontSize: "10px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: "bold",
+            border: "1px solid white",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+            cursor: "help",
+            zIndex: 10,
+          }}
+          title={indicator.title}
+        >
+          {indicator.symbol}
+        </div>
+      )}
+
+      {/* REMOVED: min/max labels and validation status text */}
+      {/* REMOVED: Color preview for current validation state */}
+    </div>
   );
 };
 
