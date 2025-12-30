@@ -79,7 +79,7 @@ const Dashboard = ({ user, setUser, handleLogout }) => {
             path="/analytics"
             element={<div>Analytics & Insights - Coming Soon</div>}
           />
-          <Route path="/excel-checksheet" element={<ExcelChecksheet />} />
+          <Route path="/create-checksheet" element={<ExcelChecksheet />} />
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

@@ -523,3 +523,70 @@
   display: block;
   margin-bottom: 4px;
 }
+/* ExcelChecksheet.css additions */
+
+.sheet-navigation {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 15px 0;
+  padding: 10px 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}
+
+.sheet-tabs {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.sheet-tab {
+  padding: 8px 16px;
+  background-color: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.sheet-tab:hover {
+  background-color: #e9ecef;
+  border-color: #adb5bd;
+}
+
+.sheet-tab.active {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.sheet-info {
+  font-size: 14px;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.sheet-header {
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #007bff;
+}
+
+.sheet-header h4 {
+  margin: 0;
+  color: #343a40;
+  font-size: 18px;
+}
+
+.excel-scope {
+  position: relative;
+}
+
+/* Ensure form fields work correctly with multiple sheets */
+.form-field-wrapper {
+  position: relative;
+  margin: 2px;
+}

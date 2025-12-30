@@ -266,9 +266,9 @@ const AppSidebar = ({ onLinkClick }) => {
             </SidebarTooltip>
           }
           component={
-            <Link to="/dashboard/excel-checksheet" onClick={handleLinkClick} />
+            <Link to="/dashboard/create-checksheet" onClick={handleLinkClick} />
           }
-          active={location.pathname === "/dashboard/excel-checksheet"}
+          active={location.pathname === "/dashboard/create-checksheet"}
         >
           Create Checksheet Templates
         </MenuItem>

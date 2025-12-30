@@ -12,6 +12,7 @@ import FormField from "./FormField";
 import FieldEditorModal from "./FieldEditorModal";
 import { getFieldTypeInfo } from "./excel-to-form-utils/fieldRegistry";
 import "./ExcelChecksheet.css";
+import swal from "sweetalert";
 
 const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   const [htmlContent, setHtmlContent] = useState(initialHtml);
@@ -25,6 +26,10 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   const [editingField, setEditingField] = useState(null);
   const [fieldInstances, setFieldInstances] = useState([]);
 
+  // Multi-sheet support
+  const [sheets, setSheets] = useState([]); // [{ id: "sheet001", name: "Sheet 1", html: "..." }, ...]
+  const [currentSheetIndex, setCurrentSheetIndex] = useState(0);
+
   // Pan & Zoom state
   const [scale, setScale] = useState(1);
   const translate = useRef({ x: 0, y: 0 });
@@ -36,10 +41,8 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   const scalerRef = useRef(null);
   const containerRef = useRef(null);
 
-  // Store scale in ref to access latest value in event handlers
   const scaleRef = useRef(scale);
 
-  // Update ref when scale changes
   useEffect(() => {
     scaleRef.current = scale;
   }, [scale]);
@@ -48,28 +51,24 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     setHtmlContent(initialHtml);
   }, [initialHtml]);
 
-  // Cleanup object URLs
   useEffect(() => {
     return () => {
       Object.values(images).forEach((url) => URL.revokeObjectURL(url));
     };
   }, [images]);
 
-  // Update transform function that uses current scale
   const updateTransform = useCallback(() => {
     const scaler = scalerRef.current;
     if (!scaler) return;
-
     scaler.style.transform = `translate(${translate.current.x}px, ${translate.current.y}px) scale(${scaleRef.current})`;
   }, []);
 
-  // === PAN & ZOOM LOGIC ===
+  // === PAN & ZOOM LOGIC (unchanged) ===
   useEffect(() => {
     const scaler = scalerRef.current;
     const container = containerRef.current;
     if (!scaler || !htmlContent || !container) return;
 
-    // Initial fit-to-width
     const tableWidth = scaler.scrollWidth;
     const availableWidth = container.clientWidth - 40;
     let initialScale = 1;
@@ -81,22 +80,18 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     translate.current = { x: 0, y: 0 };
     updateTransform();
 
-    // Mouse enter/leave to track if we're over the form
     const handleMouseEnter = () => {
       isOverForm.current = true;
       scaler.style.cursor = "grab";
     };
-
     const handleMouseLeave = () => {
       isOverForm.current = false;
       isDragging.current = false;
       scaler.style.cursor = "default";
     };
 
-    // Wheel zoom (toward mouse pointer)
     const handleWheel = (e) => {
       if (!isOverForm.current) return;
-
       e.preventDefault();
       e.stopPropagation();
 
@@ -114,15 +109,11 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       translate.current.x += dx;
       translate.current.y += dy;
 
-      // Update both state and ref
       setScale(newScale);
       scaleRef.current = newScale;
-
-      // Apply transform immediately
       scaler.style.transform = `translate(${translate.current.x}px, ${translate.current.y}px) scale(${newScale})`;
     };
 
-    // Mouse drag - ignore clicks on form controls
     const handleMouseDown = (e) => {
       if (!isOverForm.current) return;
 
@@ -135,14 +126,14 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         target.closest(".edit-field-btn") ||
         target.closest(".resize-handle")
       ) {
-        return; // Do not start dragging
+        return;
       }
 
       if (e.button === 0) {
         isDragging.current = true;
         dragStart.current = { x: e.clientX, y: e.clientY };
         scaler.style.cursor = "grabbing";
-        e.preventDefault(); // Prevent text selection
+        e.preventDefault();
       }
     };
 
@@ -161,7 +152,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       }
     };
 
-    // Touch support
     let touchStartPos = { x: 0, y: 0 };
     let isTouchingForm = false;
 
@@ -185,7 +175,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       isTouchingForm = false;
     };
 
-    // Add event listeners
     scaler.addEventListener("mouseenter", handleMouseEnter);
     scaler.addEventListener("mouseleave", handleMouseLeave);
     scaler.addEventListener("wheel", handleWheel, { passive: false });
@@ -209,32 +198,62 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     };
   }, [htmlContent, updateTransform]);
 
-  // === FIELD CONFIG EXTRACTION ===
-  // === FIELD CONFIG EXTRACTION ===
-  const extractFieldConfigs = (html) => {
-    // Improved regex to capture field patterns more precisely
+  // === FIELD CONFIG EXTRACTION (FIXED) ===
+  const extractFieldConfigs = (html, sheetIndex = 0) => {
     const regex = /\{\{(\w+):([^:}]+)(?::(\d+))?(?::([^}]+))?\}\}/g;
     const matches = [...html.matchAll(regex)];
     const configs = {};
     const instances = [];
+    const labelCount = {};
 
+    // First pass: count occurrences of each label
+    matches.forEach((match) => {
+      const [, , rawLabel] = match;
+      let label = rawLabel.trim();
+      label = label.replace(/<\/?[^>]+(>|$)/g, "").trim();
+      const bracketIndex = label.indexOf("<");
+      if (bracketIndex > -1) label = label.substring(0, bracketIndex).trim();
+      label = label.replace(/&[a-z]+;/g, "").trim();
+
+      labelCount[label] = (labelCount[label] || 0) + 1;
+    });
+
+    const duplicates = Object.entries(labelCount)
+      .filter(([_, count]) => count > 1)
+      .map(([label]) => label);
+
+    if (duplicates.length > 0) {
+      // Show sweetalert and throw error
+      swal({
+        title: "⚠️ Duplicate Field Labels Detected",
+        html: `<div style="text-align: left; font-size: 14px;">
+          <p>The following field labels appear multiple times:</p>
+          <ul style="margin-left: 20px;">${duplicates
+            .map((l) => `<li><strong>"${l}"</strong></li>`)
+            .join("")}</ul>
+          <p style="color: #d35400;">Please make each field label unique.</p>
+        </div>`,
+        icon: "error",
+        confirmButtonText: "OK",
+        confirmButtonColor: "#dc3545",
+      });
+
+      // Return error object instead of throwing
+      return {
+        configs: {},
+        instances: [],
+        error: `Duplicate labels: ${duplicates.join(", ")}`,
+      };
+    }
+
+    // Process matches if no duplicates
     matches.forEach((match, index) => {
       const [fullMatch, rawType, rawLabel, rawDecimals, rawOptions] = match;
       const type = rawType.toLowerCase();
-
-      // Clean up the label - remove any HTML tags or extra text
       let label = rawLabel.trim();
-
-      // Remove any HTML tags that might be attached
       label = label.replace(/<\/?[^>]+(>|$)/g, "").trim();
-
-      // Remove any trailing text after HTML tags
       const bracketIndex = label.indexOf("<");
-      if (bracketIndex > -1) {
-        label = label.substring(0, bracketIndex).trim();
-      }
-
-      // Also check for common HTML entities or fragments
+      if (bracketIndex > -1) label = label.substring(0, bracketIndex).trim();
       label = label.replace(/&[a-z]+;/g, "").trim();
 
       const decimalPlaces = rawDecimals ? parseInt(rawDecimals, 10) : undefined;
@@ -242,58 +261,73 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         ? rawOptions.split(",").map((o) => o.trim())
         : null;
 
-      // Create unique instance ID with position
-      const position = `S1F${index + 1}`;
-      const instanceId = `field_${label.replace(/\s+/g, "_")}_${index}`;
+      const position = `S${sheetIndex + 1}F${index + 1}`;
+      const instanceId = `field_${label.replace(/\s+/g, "_")}_${index}_sheet${
+        sheetIndex + 1
+      }`;
 
-      // Store config for each instance (not shared)
       configs[instanceId] = {
         originalType: type,
         type,
         label,
+        originalLabel: label,
         options,
         decimalPlaces,
         originalHtml: fullMatch,
         instanceId,
         position,
+        isDuplicate: false,
+        sheetIndex,
       };
 
       instances.push({
         instanceId,
         type,
         label,
+        originalLabel: label,
         position,
         matchIndex: index,
+        sheetIndex,
       });
     });
 
-    return { configs, instances };
+    return { configs, instances, error: null };
   };
 
-  // Function to assign position references to fields
   const assignFieldPositions = (instances) => {
     const positions = {};
+    if (!instances || !Array.isArray(instances)) return positions;
 
     instances.forEach((inst) => {
-      positions[inst.instanceId] = inst.position;
+      if (inst && inst.instanceId) {
+        positions[inst.instanceId] = inst.position;
+      }
     });
-
     return positions;
   };
 
   useEffect(() => {
-    if (htmlContent) {
-      const { configs, instances } = extractFieldConfigs(htmlContent);
-      setFieldConfigs(configs);
-      setFieldInstances(instances);
+    if (htmlContent && sheets.length > 0) {
+      const currentSheet = sheets[currentSheetIndex];
+      if (!currentSheet?.html) return;
 
-      // Use the assignFieldPositions function
-      const positions = assignFieldPositions(instances);
+      const result = extractFieldConfigs(currentSheet.html, currentSheetIndex);
+
+      if (result.error) {
+        // Handle duplicate error
+        setError(result.error);
+        return;
+      }
+
+      setFieldConfigs(result.configs);
+      setFieldInstances(result.instances);
+      const positions = assignFieldPositions(result.instances);
       setFieldPositions(positions);
     }
-  }, [htmlContent]);
+  }, [htmlContent, currentSheetIndex, sheets]);
 
   const getAllFieldsInfo = useMemo(() => {
+    if (!Array.isArray(fieldInstances)) return [];
     return fieldInstances.map((inst) => ({
       position: inst.position,
       type: fieldConfigs[inst.instanceId]?.type || inst.type,
@@ -302,25 +336,17 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     }));
   }, [fieldInstances, fieldConfigs]);
 
-  // Create position-to-value mapping (INSTANCE-BASED)
   const createFieldValueMap = useMemo(() => {
     const map = {};
+    if (!Array.isArray(fieldInstances)) return map;
 
     fieldInstances.forEach((inst) => {
       const position = inst.position;
-      if (!position) return;
-
-      // Get value for this specific instance
       const fieldData = formData[inst.instanceId];
-      if (fieldData) {
-        const value = fieldData.value;
-        const numValue = parseFloat(value);
-        map[position] = isNaN(numValue) ? 0 : numValue;
-      } else {
-        map[position] = 0;
-      }
+      const value = fieldData?.value;
+      const numValue = parseFloat(value);
+      map[position] = isNaN(numValue) ? 0 : numValue;
     });
-
     return map;
   }, [formData, fieldInstances]);
 
@@ -328,7 +354,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   const injectExcelCSS = (cssText) => {
     const existing = document.getElementById("excel-css");
     if (existing) existing.remove();
-
     const style = document.createElement("style");
     style.id = "excel-css";
     style.innerHTML = cssText;
@@ -338,11 +363,9 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   const processHtml = (html) => {
     html = html.replace(/\r/g, "");
     const doc = new DOMParser().parseFromString(html, "text/html");
-
     doc.querySelectorAll("head style").forEach((style) => {
       injectExcelCSS(style.innerHTML);
     });
-
     return doc.body ? doc.body.innerHTML : html;
   };
 
@@ -377,6 +400,92 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     return result;
   };
 
+  // === NEW: Multi-sheet ZIP handling ===
+  const handleZipUpload = async (file) => {
+    const zip = await JSZip.loadAsync(file);
+    const files = Object.values(zip.files).filter((f) => !f.dir);
+
+    // Find all sheet files
+    const sheetFiles = files.filter((f) => f.name.match(/sheet\d+\.htm(l)?$/i));
+    if (sheetFiles.length === 0)
+      throw new Error("No sheet files found in ZIP.");
+
+    // Sort sheets by name to ensure consistent order (sheet001, sheet002, etc.)
+    sheetFiles.sort((a, b) => a.name.localeCompare(b.name));
+
+    // Extract real sheet names from tabstrip.html
+    let sheetNames = [];
+    const tabstripFile = files.find(
+      (f) => f.name.toLowerCase() === "tabstrip.html"
+    );
+    if (tabstripFile) {
+      const tabstripHtml = await tabstripFile.async("text");
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(tabstripHtml, "text/html");
+      const links = doc.querySelectorAll("a[target='frSheet']");
+      links.forEach((link) => {
+        const text = link.textContent.trim();
+        sheetNames.push(text || "Sheet");
+      });
+    }
+
+    // Fallback names
+    if (sheetNames.length !== sheetFiles.length) {
+      sheetNames = sheetFiles.map((_, i) => `Sheet ${i + 1}`);
+    }
+
+    // === COLLECT ALL CSS FROM ALL SOURCES ===
+    let allCss = "";
+
+    // 1. Main stylesheet.css (global styles)
+    const cssFile = files.find((f) =>
+      f.name.toLowerCase().includes("stylesheet.css")
+    );
+    if (cssFile) {
+      allCss += await cssFile.async("text");
+      allCss += "\n\n";
+    }
+
+    // 2. Collect <style> from EVERY sheet
+    const loadedSheets = [];
+    for (let i = 0; i < sheetFiles.length; i++) {
+      const sheetFile = sheetFiles[i];
+      let html = await sheetFile.async("text");
+
+      // Extract and collect inline <style> tags from this sheet
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      doc.querySelectorAll("head style").forEach((styleTag) => {
+        allCss += styleTag.innerHTML + "\n\n";
+      });
+
+      // Clean body HTML (remove <head> styles since we're injecting them globally)
+      html = doc.body ? doc.body.innerHTML : html;
+
+      loadedSheets.push({
+        id: sheetFile.name,
+        name: sheetNames[i] || `Sheet ${i + 1}`,
+        html,
+        index: i,
+      });
+    }
+
+    // === INJECT ALL COLLECTED CSS ONCE ===
+    injectExcelCSS(allCss);
+
+    // === PROCESS IMAGES ===
+    const imageMap = await extractImages(zip);
+    setImages(imageMap);
+
+    const processedSheets = loadedSheets.map((sheet) => ({
+      ...sheet,
+      html: rewriteImageUrls(sheet.html, imageMap),
+    }));
+
+    setSheets(processedSheets);
+    setCurrentSheetIndex(0);
+    setHtmlContent(processedSheets[0]?.html || "");
+  };
+
   const handleHtmlUpload = async (file) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -389,7 +498,36 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         return;
       }
       content = processHtml(content);
-      setHtmlContent(content);
+
+      try {
+        const result = extractFieldConfigs(content);
+
+        if (result.error) {
+          setError(result.error);
+          setSheets([]);
+          setHtmlContent("");
+        } else {
+          setFieldConfigs(result.configs);
+          setFieldInstances(result.instances);
+          setFieldPositions(assignFieldPositions(result.instances));
+
+          setSheets([
+            {
+              id: "single",
+              name: file.name.replace(/\.[^/.]+$/, ""),
+              html: content,
+              index: 0,
+            },
+          ]);
+          setCurrentSheetIndex(0);
+          setHtmlContent(content);
+          setError(null);
+        }
+      } catch (err) {
+        setError(`Error: ${err.message}`);
+        setSheets([]);
+        setHtmlContent("");
+      }
       setIsUploading(false);
     };
     reader.onerror = () => {
@@ -399,34 +537,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     reader.readAsText(file);
   };
 
-  const handleZipUpload = async (file) => {
-    const zip = await JSZip.loadAsync(file);
-    const files = Object.values(zip.files);
-
-    const htmlFile = files.find(
-      (f) => f.name.match(/sheet\d*\.htm(l)?$/i) && !f.dir
-    );
-    const cssFile = files.find((f) =>
-      f.name.toLowerCase().includes("stylesheet.css")
-    );
-
-    if (!htmlFile) throw new Error("No sheet HTML found in ZIP.");
-
-    let html = await htmlFile.async("text");
-    html = processHtml(html);
-
-    if (cssFile) {
-      const css = await cssFile.async("text");
-      injectExcelCSS(css);
-    }
-
-    const imageMap = await extractImages(zip);
-    setImages(imageMap);
-
-    const processedHtml = rewriteImageUrls(html, imageMap);
-    setHtmlContent(processedHtml);
-  };
-
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -434,10 +544,13 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     setError(null);
     setIsUploading(true);
     setHtmlContent("");
+    setSheets([]);
     setImages({});
     setFormData({});
     setFieldConfigs({});
     setFieldPositions({});
+    setFieldInstances([]);
+    setCurrentSheetIndex(0);
 
     const ext = file.name.split(".").pop().toLowerCase();
 
@@ -451,6 +564,8 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       }
     } catch (err) {
       setError(`Error: ${err.message}`);
+      console.error("Upload error:", err);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     } finally {
       setIsUploading(false);
     }
@@ -465,7 +580,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
 
   const handleSaveFieldConfig = (updatedField) => {
     const { instanceId } = updatedField;
-
     setFieldConfigs((prev) => ({
       ...prev,
       [instanceId]: {
@@ -481,182 +595,137 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     }));
   };
 
-  // Enhanced parseOptions with field positions and formData
   const parseOptions = {
     replace: (node) => {
       if (node.type !== "text") return;
-
       const text = node.data;
       const regex = /\{\{(\w+):([^:]+)(?::(\d+))?(?::([^}]+))?\}\}/g;
-
-      // Skip if the text contains HTML tags (it's likely part of the table structure)
-      if (text.includes("<") || text.includes(">") || text.includes("</")) {
-        return;
-      }
+      if (!text.match(regex)) return;
 
       const matches = [...text.matchAll(regex)];
-
       if (matches.length === 0) return;
 
       const parts = [];
       let lastIndex = 0;
+      const renderedInstances = new Set();
 
       matches.forEach((match) => {
-        const [fullMatch, rawType, rawLabel, rawDecimals, rawOptions] = match;
+        const [fullMatch, rawType, rawLabel] = match;
         const type = rawType.toLowerCase();
-        const label = rawLabel.trim();
-        const decimalPlaces = rawDecimals
-          ? parseInt(rawDecimals, 10)
-          : undefined;
-        const options = rawOptions
-          ? rawOptions.split(",").map((o) => o.trim())
-          : null;
+        let cleanLabel = rawLabel.trim();
+        cleanLabel = cleanLabel.replace(/<\/?[^>]+(>|$)/g, "").trim();
+        const bracketIndex = cleanLabel.indexOf("<");
+        if (bracketIndex > -1)
+          cleanLabel = cleanLabel.substring(0, bracketIndex).trim();
+        cleanLabel = cleanLabel.replace(/&[a-z]+;/g, "").trim();
 
-        // We need to find the correct instance - look in fieldInstances
-        // Find the instance that matches this label and hasn't been used yet
         const possibleInstances = fieldInstances.filter(
-          (inst) => inst.label === label
+          (inst) =>
+            inst.originalLabel === cleanLabel &&
+            inst.sheetIndex === currentSheetIndex
         );
 
-        // Find an instance that hasn't been rendered yet
-        let instance = possibleInstances.find((inst) => {
-          // Check if this instance hasn't been rendered yet by looking at already rendered parts
-          const alreadyRendered = parts.some(
-            (part) => React.isValidElement(part) && part.key === inst.instanceId
-          );
-          return !alreadyRendered;
-        });
+        if (!possibleInstances.length) return;
 
-        // If no unused instance found, use the first one
-        if (!instance && possibleInstances.length > 0) {
-          instance = possibleInstances[0];
+        let instance =
+          possibleInstances.find((i) => !renderedInstances.has(i.instanceId)) ||
+          possibleInstances[0];
+        if (!instance) return;
+
+        renderedInstances.add(instance.instanceId);
+        const { instanceId: fieldId, position } = instance;
+        const config = fieldConfigs[fieldId] || {};
+
+        if (match.index > lastIndex) {
+          parts.push(text.substring(lastIndex, match.index));
         }
-
-        const instanceId =
-          instance?.instanceId || `field_${label.replace(/\s+/g, "_")}_0`;
-        const position =
-          instance?.position || fieldPositions[instanceId] || "S1F1";
-        const fieldName = instanceId;
-
-        const index = match.index;
-        if (index > lastIndex) {
-          parts.push(text.substring(lastIndex, index));
-        }
-
-        const config = fieldConfigs[instanceId] || {};
 
         const fieldInfo = getFieldTypeInfo(config.type || type);
 
         parts.push(
           <FormField
-            key={instanceId}
+            key={fieldId}
             type={config.type || type}
-            label={config.label || label}
-            name={fieldName}
-            value={formData[fieldName]?.value ?? fieldInfo.defaultValue}
+            label={config.label || instance.label}
+            name={fieldId}
+            value={formData[fieldId]?.value ?? fieldInfo.defaultValue}
             onChange={handleFieldChange}
-            decimalPlaces={config.decimalPlaces ?? decimalPlaces}
-            options={config.options ?? options}
+            decimalPlaces={config.decimalPlaces}
+            options={config.options}
             multiline={config.multiline ?? false}
             autoShrinkFont={config.autoShrinkFont ?? true}
             formula={config.formula}
             fieldPosition={position}
             allFormData={formData}
             fieldValueMap={createFieldValueMap}
-            allFields={getAllFieldsInfo} // NEW: Pass all fields info
-            onEditField={() => {
-              console.log("Opening editor for field:", {
-                name: fieldName,
-                fieldPosition: position,
-                instanceId,
-                label: config.label || label,
-              });
+            allFields={getAllFieldsInfo}
+            onEditField={() =>
               setEditingField({
-                name: fieldName,
-                type: config.type || type,
-                label: config.label || label,
-                options: config.options ?? options,
-                decimalPlaces: config.decimalPlaces ?? decimalPlaces,
-                multiline: config.multiline ?? false,
-                autoShrinkFont: config.autoShrinkFont ?? true,
-                formula: config.formula,
+                ...config,
+                instanceId: fieldId,
                 fieldPosition: position,
-                instanceId,
-              });
-            }}
+                originalLabel: instance.originalLabel,
+              })
+            }
           />
         );
 
-        lastIndex = index + fullMatch.length;
+        lastIndex = match.index + fullMatch.length;
       });
 
-      if (lastIndex < text.length) {
-        parts.push(text.substring(lastIndex));
-      }
-
+      if (lastIndex < text.length) parts.push(text.substring(lastIndex));
       return <>{parts}</>;
     },
   };
 
   const parsedContent = useMemo(() => {
-    return parse(htmlContent, parseOptions);
+    const currentHtml = sheets[currentSheetIndex]?.html || htmlContent;
+    return parse(currentHtml, parseOptions);
   }, [
     htmlContent,
     formData,
     fieldConfigs,
-    fieldPositions,
-    createFieldValueMap,
+    currentSheetIndex,
+    sheets,
+    fieldInstances,
   ]);
 
   const handlePublish = async () => {
     if (!formName.trim()) return alert("Please enter a form name");
-    if (!htmlContent) return alert("No content to publish");
-
-    const editedConfigs = Object.entries(fieldConfigs).reduce(
-      (acc, [key, config]) => {
-        if (
-          config.type !== config.originalType ||
-          config.label !==
-            config.originalHtml.match(/\{\{(\w+):([^:]+)/)?.[2]?.trim() ||
-          config.multiline !== false ||
-          config.autoShrinkFont !== true ||
-          config.formula
-        ) {
-          acc[key] = {
-            type: config.type,
-            label: config.label,
-            options: config.options,
-            decimalPlaces: config.decimalPlaces,
-            multiline: config.multiline,
-            autoShrinkFont: config.autoShrinkFont,
-            formula: config.formula,
-            fieldPosition: fieldPositions[key],
-          };
-        }
-        return acc;
-      },
-      {}
-    );
-
-    const filledValues = Object.entries(formData).reduce(
-      (acc, [key, { value }]) => {
-        if (value !== undefined && value !== null && value !== "") {
-          acc[key] = value;
-        }
-        return acc;
-      },
-      {}
-    );
+    if (sheets.length === 0) return alert("No content to publish");
 
     try {
+      // Collect all field configs from all sheets
+      const allConfigs = {};
+      const allPositions = {};
+
+      for (let i = 0; i < sheets.length; i++) {
+        const result = extractFieldConfigs(sheets[i].html, i);
+        if (result.error) {
+          alert(`Error in sheet "${sheets[i].name}": ${result.error}`);
+          return;
+        }
+        Object.assign(allConfigs, result.configs);
+        Object.assign(allPositions, assignFieldPositions(result.instances));
+      }
+
+      const filledValues = Object.fromEntries(
+        Object.entries(formData)
+          .filter(([_, v]) => v.value != null && v.value !== "")
+          .map(([k, v]) => [k, v.value])
+      );
+
       const response = await axios.post(
         "http://localhost:5000/api/checksheet/templates",
         {
           name: formName,
-          html_content: htmlContent,
-          field_configurations: editedConfigs,
-          field_positions: fieldPositions,
+          html_content: sheets
+            .map((s) => s.html)
+            .join("<div style='page-break-before:always'></div>"),
+          field_configurations: allConfigs,
+          field_positions: allPositions,
           form_values: filledValues,
+          sheets: sheets.map((s) => ({ name: s.name, html: s.html })),
           last_updated: new Date().toISOString(),
         }
       );
@@ -666,7 +735,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         setFormName("");
       }
     } catch (err) {
-      console.error(err);
       alert("Publish failed: " + (err.response?.data?.message || err.message));
     }
   };
@@ -682,7 +750,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       />
 
       <div className="excel-header">
-        <h3>Excel Checksheet Builder</h3>
+        <h3>Form Checksheet Builder</h3>
         <div className="excel-actions">
           <input
             type="file"
@@ -698,7 +766,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
             Upload File
           </button>
 
-          {htmlContent && (
+          {sheets.length > 0 && (
             <>
               <input
                 type="text"
@@ -722,8 +790,25 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       {error && <div className="error-banner">{error}</div>}
       {isUploading && <div className="loading">Processing file...</div>}
 
+      {/* Sheet Tabs */}
+      {sheets.length > 1 && (
+        <div className="sheet-tabs">
+          {sheets.map((sheet, index) => (
+            <button
+              key={sheet.id}
+              className={`sheet-tab ${
+                currentSheetIndex === index ? "active" : ""
+              }`}
+              onClick={() => setCurrentSheetIndex(index)}
+            >
+              {sheet.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="preview-area">
-        {htmlContent ? (
+        {sheets.length > 0 ? (
           <div className="excel-preview-container" ref={containerRef}>
             <div className="excel-preview-scaler" ref={scalerRef}>
               <div className="excel-scope">{parsedContent}</div>
