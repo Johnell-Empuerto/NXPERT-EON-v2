@@ -17,11 +17,13 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   const [htmlContent, setHtmlContent] = useState(initialHtml);
   const [formData, setFormData] = useState({});
   const [fieldConfigs, setFieldConfigs] = useState({});
+  const [fieldPositions, setFieldPositions] = useState({});
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState(null);
   const [images, setImages] = useState({});
   const [formName, setFormName] = useState("");
   const [editingField, setEditingField] = useState(null);
+  const [fieldInstances, setFieldInstances] = useState([]);
 
   // Pan & Zoom state
   const [scale, setScale] = useState(1);
@@ -31,7 +33,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   const isOverForm = useRef(false);
 
   const fileInputRef = useRef(null);
-  const fieldCounter = useRef(0);
   const scalerRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -206,43 +207,122 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       scaler.removeEventListener("touchmove", handleTouchMove);
       scaler.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [htmlContent, updateTransform]); // Remove scale from dependencies
+  }, [htmlContent, updateTransform]);
 
   // === FIELD CONFIG EXTRACTION ===
+  // === FIELD CONFIG EXTRACTION ===
   const extractFieldConfigs = (html) => {
-    const regex = /\{\{(\w+):([^:]+)(?::(\d+))?(?::([^}]+))?\}\}/g;
+    // Improved regex to capture field patterns more precisely
+    const regex = /\{\{(\w+):([^:}]+)(?::(\d+))?(?::([^}]+))?\}\}/g;
     const matches = [...html.matchAll(regex)];
     const configs = {};
+    const instances = [];
 
-    matches.forEach((match) => {
+    matches.forEach((match, index) => {
       const [fullMatch, rawType, rawLabel, rawDecimals, rawOptions] = match;
       const type = rawType.toLowerCase();
-      const label = rawLabel.trim();
+
+      // Clean up the label - remove any HTML tags or extra text
+      let label = rawLabel.trim();
+
+      // Remove any HTML tags that might be attached
+      label = label.replace(/<\/?[^>]+(>|$)/g, "").trim();
+
+      // Remove any trailing text after HTML tags
+      const bracketIndex = label.indexOf("<");
+      if (bracketIndex > -1) {
+        label = label.substring(0, bracketIndex).trim();
+      }
+
+      // Also check for common HTML entities or fragments
+      label = label.replace(/&[a-z]+;/g, "").trim();
+
       const decimalPlaces = rawDecimals ? parseInt(rawDecimals, 10) : undefined;
       const options = rawOptions
         ? rawOptions.split(",").map((o) => o.trim())
         : null;
 
-      const baseKey = `field_${label.replace(/\s+/g, "_")}`;
-      configs[baseKey] = {
+      // Create unique instance ID with position
+      const position = `S1F${index + 1}`;
+      const instanceId = `field_${label.replace(/\s+/g, "_")}_${index}`;
+
+      // Store config for each instance (not shared)
+      configs[instanceId] = {
         originalType: type,
         type,
         label,
         options,
         decimalPlaces,
         originalHtml: fullMatch,
+        instanceId,
+        position,
       };
+
+      instances.push({
+        instanceId,
+        type,
+        label,
+        position,
+        matchIndex: index,
+      });
     });
 
-    return configs;
+    return { configs, instances };
+  };
+
+  // Function to assign position references to fields
+  const assignFieldPositions = (instances) => {
+    const positions = {};
+
+    instances.forEach((inst) => {
+      positions[inst.instanceId] = inst.position;
+    });
+
+    return positions;
   };
 
   useEffect(() => {
     if (htmlContent) {
-      const configs = extractFieldConfigs(htmlContent);
+      const { configs, instances } = extractFieldConfigs(htmlContent);
       setFieldConfigs(configs);
+      setFieldInstances(instances);
+
+      // Use the assignFieldPositions function
+      const positions = assignFieldPositions(instances);
+      setFieldPositions(positions);
     }
   }, [htmlContent]);
+
+  const getAllFieldsInfo = useMemo(() => {
+    return fieldInstances.map((inst) => ({
+      position: inst.position,
+      type: fieldConfigs[inst.instanceId]?.type || inst.type,
+      label: inst.label,
+      instanceId: inst.instanceId,
+    }));
+  }, [fieldInstances, fieldConfigs]);
+
+  // Create position-to-value mapping (INSTANCE-BASED)
+  const createFieldValueMap = useMemo(() => {
+    const map = {};
+
+    fieldInstances.forEach((inst) => {
+      const position = inst.position;
+      if (!position) return;
+
+      // Get value for this specific instance
+      const fieldData = formData[inst.instanceId];
+      if (fieldData) {
+        const value = fieldData.value;
+        const numValue = parseFloat(value);
+        map[position] = isNaN(numValue) ? 0 : numValue;
+      } else {
+        map[position] = 0;
+      }
+    });
+
+    return map;
+  }, [formData, fieldInstances]);
 
   // === HTML & IMAGE PROCESSING ===
   const injectExcelCSS = (cssText) => {
@@ -357,6 +437,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     setImages({});
     setFormData({});
     setFieldConfigs({});
+    setFieldPositions({});
 
     const ext = file.name.split(".").pop().toLowerCase();
 
@@ -383,28 +464,36 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   };
 
   const handleSaveFieldConfig = (updatedField) => {
-    const baseKey = updatedField.name.split("_").slice(0, -1).join("_");
+    const { instanceId } = updatedField;
 
     setFieldConfigs((prev) => ({
       ...prev,
-      [baseKey]: {
-        ...prev[baseKey],
+      [instanceId]: {
+        ...prev[instanceId],
         type: updatedField.type,
         label: updatedField.label,
         options: updatedField.options,
         decimalPlaces: updatedField.decimalPlaces,
-        // SAVE CHECKBOX VALUES:
         multiline: updatedField.multiline,
         autoShrinkFont: updatedField.autoShrinkFont,
+        formula: updatedField.formula,
       },
     }));
   };
+
+  // Enhanced parseOptions with field positions and formData
   const parseOptions = {
     replace: (node) => {
       if (node.type !== "text") return;
 
       const text = node.data;
       const regex = /\{\{(\w+):([^:]+)(?::(\d+))?(?::([^}]+))?\}\}/g;
+
+      // Skip if the text contains HTML tags (it's likely part of the table structure)
+      if (text.includes("<") || text.includes(">") || text.includes("</")) {
+        return;
+      }
+
       const matches = [...text.matchAll(regex)];
 
       if (matches.length === 0) return;
@@ -416,26 +505,51 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         const [fullMatch, rawType, rawLabel, rawDecimals, rawOptions] = match;
         const type = rawType.toLowerCase();
         const label = rawLabel.trim();
-        const decimalPlaces = rawDecimals ? parseInt(rawDecimals) : undefined;
+        const decimalPlaces = rawDecimals
+          ? parseInt(rawDecimals, 10)
+          : undefined;
         const options = rawOptions
           ? rawOptions.split(",").map((o) => o.trim())
           : null;
+
+        // We need to find the correct instance - look in fieldInstances
+        // Find the instance that matches this label and hasn't been used yet
+        const possibleInstances = fieldInstances.filter(
+          (inst) => inst.label === label
+        );
+
+        // Find an instance that hasn't been rendered yet
+        let instance = possibleInstances.find((inst) => {
+          // Check if this instance hasn't been rendered yet by looking at already rendered parts
+          const alreadyRendered = parts.some(
+            (part) => React.isValidElement(part) && part.key === inst.instanceId
+          );
+          return !alreadyRendered;
+        });
+
+        // If no unused instance found, use the first one
+        if (!instance && possibleInstances.length > 0) {
+          instance = possibleInstances[0];
+        }
+
+        const instanceId =
+          instance?.instanceId || `field_${label.replace(/\s+/g, "_")}_0`;
+        const position =
+          instance?.position || fieldPositions[instanceId] || "S1F1";
+        const fieldName = instanceId;
 
         const index = match.index;
         if (index > lastIndex) {
           parts.push(text.substring(lastIndex, index));
         }
 
-        const uniqueId = ++fieldCounter.current;
-        const fieldName = `field_${label.replace(/\s+/g, "_")}_${uniqueId}`;
-        const baseKey = `field_${label.replace(/\s+/g, "_")}`;
-        const config = fieldConfigs[baseKey] || {};
+        const config = fieldConfigs[instanceId] || {};
 
         const fieldInfo = getFieldTypeInfo(config.type || type);
 
         parts.push(
           <FormField
-            key={fieldName}
+            key={instanceId}
             type={config.type || type}
             label={config.label || label}
             name={fieldName}
@@ -443,21 +557,32 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
             onChange={handleFieldChange}
             decimalPlaces={config.decimalPlaces ?? decimalPlaces}
             options={config.options ?? options}
-            // PASS THE CHECKBOX VALUES:
             multiline={config.multiline ?? false}
             autoShrinkFont={config.autoShrinkFont ?? true}
-            onEditField={() =>
+            formula={config.formula}
+            fieldPosition={position}
+            allFormData={formData}
+            fieldValueMap={createFieldValueMap}
+            onEditField={() => {
+              console.log("Opening editor for field:", {
+                name: fieldName,
+                fieldPosition: position,
+                instanceId,
+                label: config.label || label,
+              });
               setEditingField({
                 name: fieldName,
                 type: config.type || type,
                 label: config.label || label,
                 options: config.options ?? options,
                 decimalPlaces: config.decimalPlaces ?? decimalPlaces,
-                // INCLUDE CHECKBOX VALUES FOR EDITOR:
                 multiline: config.multiline ?? false,
                 autoShrinkFont: config.autoShrinkFont ?? true,
-              })
-            }
+                formula: config.formula,
+                fieldPosition: position,
+                instanceId,
+              });
+            }}
           />
         );
 
@@ -473,9 +598,14 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   };
 
   const parsedContent = useMemo(() => {
-    fieldCounter.current = 0;
     return parse(htmlContent, parseOptions);
-  }, [htmlContent, formData, fieldConfigs]);
+  }, [
+    htmlContent,
+    formData,
+    fieldConfigs,
+    fieldPositions,
+    createFieldValueMap,
+  ]);
 
   const handlePublish = async () => {
     if (!formName.trim()) return alert("Please enter a form name");
@@ -486,13 +616,20 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         if (
           config.type !== config.originalType ||
           config.label !==
-            config.originalHtml.match(/\{\{(\w+):([^:]+)/)?.[2]?.trim()
+            config.originalHtml.match(/\{\{(\w+):([^:]+)/)?.[2]?.trim() ||
+          config.multiline !== false ||
+          config.autoShrinkFont !== true ||
+          config.formula
         ) {
           acc[key] = {
             type: config.type,
             label: config.label,
             options: config.options,
             decimalPlaces: config.decimalPlaces,
+            multiline: config.multiline,
+            autoShrinkFont: config.autoShrinkFont,
+            formula: config.formula,
+            fieldPosition: fieldPositions[key],
           };
         }
         return acc;
@@ -517,6 +654,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
           name: formName,
           html_content: htmlContent,
           field_configurations: editedConfigs,
+          field_positions: fieldPositions,
           form_values: filledValues,
           last_updated: new Date().toISOString(),
         }
@@ -539,6 +677,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         isOpen={!!editingField}
         onClose={() => setEditingField(null)}
         onSave={handleSaveFieldConfig}
+        allFields={getAllFieldsInfo}
       />
 
       <div className="excel-header">

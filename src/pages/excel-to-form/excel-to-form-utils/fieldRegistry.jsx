@@ -6,6 +6,7 @@ import NumberField from "../excel-to-form-components/NumberField";
 import DateField from "../excel-to-form-components/DateField";
 import CheckboxField from "../excel-to-form-components/CheckboxField";
 import DropdownField from "../excel-to-form-components/DropdownField";
+import CalculationField from "../excel-to-form-components/CalculationField"; // NEW
 
 export const fieldRegistry = {
   text: {
@@ -96,6 +97,37 @@ export const fieldRegistry = {
         label: "Options (comma-separated)",
         placeholder: "Option1, Option2, Option3",
         required: true,
+      },
+    ],
+  },
+  calculation: {
+    // NEW: Calculation field
+    label: "Calculation",
+    component: CalculationField,
+    defaultValue: "",
+    supportsHeight: true,
+    readOnly: true, // Calculated fields are read-only
+    editorFields: [
+      {
+        name: "label",
+        type: "text",
+        label: "Field Label",
+        required: true,
+      },
+      {
+        name: "formula",
+        type: "text",
+        label: "Formula",
+        placeholder: "Enter formula like: S1F1 + S1F2",
+        required: true,
+      },
+      {
+        name: "decimalPlaces",
+        type: "number",
+        label: "Decimal Places (for result)",
+        min: 0,
+        max: 10,
+        defaultValue: 2,
       },
     ],
   },
