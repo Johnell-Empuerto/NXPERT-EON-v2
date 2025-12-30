@@ -14,9 +14,10 @@ const FormField = ({
   multiline = false,
   autoShrinkFont = true,
   formula = "",
-  fieldPosition = "", // Make sure this is passed correctly
+  fieldPosition = "",
   allFormData = {},
   fieldValueMap = {},
+  allFields = [], // NEW: Add this prop
 }) => {
   const [height, setHeight] = useState(38);
   const minHeight = 28;
@@ -53,7 +54,8 @@ const FormField = ({
           formula={formula}
           fieldPosition={fieldPosition}
           formData={allFormData}
-          fieldValueMap={fieldValueMap} // NEW: Pass the mapping
+          fieldValueMap={fieldValueMap}
+          allFields={allFields}
         />
         {fieldInfo.supportsHeight && (
           <div className="resize-handle">

@@ -17,9 +17,15 @@ const FieldEditorModal = ({
   const [formData, setFormData] = useState({});
   const [showFieldReferences, setShowFieldReferences] = useState(false);
 
+  // Range selection state
+  const [selectedRangeStart, setSelectedRangeStart] = useState(null);
+  const [selectedRangeEnd, setSelectedRangeEnd] = useState(null);
+  const [showRangeSelector, setShowRangeSelector] = useState(false);
+  const [selectedFunction, setSelectedFunction] = useState("SUM"); // Default function
+
   useEffect(() => {
     if (field) {
-      console.log("Editing field:", field); // Debug log
+      console.log("Editing field:", field);
       setType(field.type || "text");
       setLabel(field.label || "");
 
@@ -64,6 +70,55 @@ const FieldEditorModal = ({
       ...prev,
       [fieldName]: value,
     }));
+  };
+
+  // Range selection handlers
+  const handleRangeStartSelect = (field) => {
+    setSelectedRangeStart(field);
+    setSelectedRangeEnd(null); // Reset end when selecting new start
+  };
+
+  const handleRangeEndSelect = (field) => {
+    if (selectedRangeStart) {
+      setSelectedRangeEnd(field);
+    }
+  };
+
+  const insertRangeFormula = () => {
+    if (selectedRangeStart && selectedRangeEnd) {
+      // Validate range order
+      const startNum = parseInt(selectedRangeStart.position.match(/F(\d+)/)[1]);
+      const endNum = parseInt(selectedRangeEnd.position.match(/F(\d+)/)[1]);
+
+      let actualStart = selectedRangeStart;
+      let actualEnd = selectedRangeEnd;
+
+      // Ensure start comes before end
+      if (startNum > endNum) {
+        actualStart = selectedRangeEnd;
+        actualEnd = selectedRangeStart;
+      }
+
+      const rangeFormula = `${selectedFunction}(${actualStart.position}:${actualEnd.position})`;
+      const currentFormula = formData.formula || "";
+      const newFormula = currentFormula
+        ? `${currentFormula} + ${rangeFormula}`
+        : rangeFormula;
+      handleFormChange("formula", newFormula);
+
+      // Reset selection
+      setSelectedRangeStart(null);
+      setSelectedRangeEnd(null);
+      setShowRangeSelector(false);
+    }
+  };
+
+  const insertIndividualField = (field) => {
+    const currentFormula = formData.formula || "";
+    const newFormula = currentFormula
+      ? `${currentFormula} + ${field.position}`
+      : field.position;
+    handleFormChange("formula", newFormula);
   };
 
   const handleSave = () => {
@@ -155,23 +210,25 @@ const FieldEditorModal = ({
     (f) => f.position !== field?.fieldPosition && f.type !== "calculation"
   );
 
-  // Debug information
-  console.log("Current field position:", field?.fieldPosition);
-  console.log("All fields:", allFields);
-  console.log("Available references:", availableReferences);
+  // Get current field position for display
+  const currentFieldPosition =
+    field?.fieldPosition ||
+    (field?.instanceId &&
+      allFields.find((f) => f.instanceId === field.instanceId)?.position) ||
+    "S1F1";
 
   return (
     <div className="modal-overlay">
       <div className="modal-content">
         <h3>Edit Field Configuration</h3>
 
-        {/* Field Reference Display - FIXED */}
+        {/* Field Reference Display */}
         <div className="form-group">
           <label>Field Reference:</label>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <input
               type="text"
-              value={field?.fieldPosition || "Auto-assigned"}
+              value={currentFieldPosition}
               className="form-input"
               readOnly
               style={{
@@ -196,7 +253,7 @@ const FieldEditorModal = ({
           </div>
           <small style={{ display: "block", marginTop: "4px" }}>
             Use this reference in calculation formulas (e.g.,{" "}
-            {field?.fieldPosition || "S1F1"} + S1F2)
+            {currentFieldPosition} + S1F2)
           </small>
         </div>
 
@@ -225,18 +282,145 @@ const FieldEditorModal = ({
               <strong style={{ fontSize: "14px", color: "#495057" }}>
                 Available Field References:
               </strong>
-              <span
+              <div
+                style={{ display: "flex", gap: "8px", alignItems: "center" }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRangeSelector(!showRangeSelector);
+                    setSelectedRangeStart(null);
+                    setSelectedRangeEnd(null);
+                  }}
+                  className="btn-secondary"
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: "11px",
+                    whiteSpace: "nowrap",
+                    backgroundColor: showRangeSelector ? "#0d6efd" : "#6c757d",
+                    color: "white",
+                    border: "none",
+                  }}
+                >
+                  {showRangeSelector ? "Cancel Range" : "Select Range"}
+                </button>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    color: "#6c757d",
+                    backgroundColor: "#e9ecef",
+                    padding: "2px 6px",
+                    borderRadius: "10px",
+                  }}
+                >
+                  {availableReferences.length} fields
+                </span>
+              </div>
+            </div>
+
+            {showRangeSelector && (
+              <div
                 style={{
-                  fontSize: "11px",
-                  color: "#6c757d",
-                  backgroundColor: "#e9ecef",
-                  padding: "2px 6px",
-                  borderRadius: "10px",
+                  marginBottom: "12px",
+                  padding: "8px",
+                  backgroundColor: "#e7f3ff",
+                  borderRadius: "4px",
+                  border: "1px solid #cfe2ff",
                 }}
               >
-                {availableReferences.length} fields
-              </span>
-            </div>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: "bold",
+                    marginBottom: "4px",
+                    color: "#0d6efd",
+                  }}
+                >
+                  📊 Select Range for Excel Function
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginBottom: "6px",
+                  }}
+                >
+                  <span style={{ fontSize: "11px", color: "#495057" }}>
+                    Function:
+                  </span>
+                  <select
+                    value={selectedFunction}
+                    onChange={(e) => setSelectedFunction(e.target.value)}
+                    style={{
+                      fontSize: "11px",
+                      padding: "2px 4px",
+                      borderRadius: "3px",
+                      border: "1px solid #ced4da",
+                    }}
+                  >
+                    <option value="SUM">SUM</option>
+                    <option value="AVERAGE">AVERAGE</option>
+                    <option value="MIN">MIN</option>
+                    <option value="MAX">MAX</option>
+                    <option value="COUNT">COUNT</option>
+                  </select>
+                </div>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#495057",
+                    marginBottom: "6px",
+                  }}
+                >
+                  Click to select start and end fields:
+                  {selectedRangeStart && (
+                    <div style={{ marginTop: "4px" }}>
+                      Start:{" "}
+                      <code
+                        style={{
+                          backgroundColor: "#cfe2ff",
+                          padding: "1px 4px",
+                          borderRadius: "3px",
+                        }}
+                      >
+                        {selectedRangeStart.position}
+                      </code>{" "}
+                      ({selectedRangeStart.label})
+                    </div>
+                  )}
+                  {selectedRangeEnd && (
+                    <div style={{ marginTop: "2px" }}>
+                      End:{" "}
+                      <code
+                        style={{
+                          backgroundColor: "#d1e7dd",
+                          padding: "1px 4px",
+                          borderRadius: "3px",
+                        }}
+                      >
+                        {selectedRangeEnd.position}
+                      </code>{" "}
+                      ({selectedRangeEnd.label})
+                    </div>
+                  )}
+                </div>
+                {selectedRangeStart && selectedRangeEnd && (
+                  <button
+                    onClick={insertRangeFormula}
+                    className="btn-primary"
+                    style={{
+                      padding: "4px 12px",
+                      fontSize: "11px",
+                      marginTop: "4px",
+                    }}
+                  >
+                    Insert {selectedFunction}({selectedRangeStart.position}:
+                    {selectedRangeEnd.position})
+                  </button>
+                )}
+              </div>
+            )}
 
             <div
               style={{
@@ -250,7 +434,14 @@ const FieldEditorModal = ({
                   key={`${refField.position}-${refField.instanceId}`}
                   style={{
                     padding: "6px 8px",
-                    backgroundColor: "white",
+                    backgroundColor:
+                      showRangeSelector &&
+                      selectedRangeStart?.position === refField.position
+                        ? "#cfe2ff"
+                        : showRangeSelector &&
+                          selectedRangeEnd?.position === refField.position
+                        ? "#d1e7dd"
+                        : "white",
                     borderRadius: "4px",
                     border: "1px solid #dee2e6",
                     fontSize: "12px",
@@ -261,21 +452,39 @@ const FieldEditorModal = ({
                   }}
                   onClick={() => {
                     if (type === "calculation") {
-                      const currentFormula = formData.formula || "";
-                      const newFormula = currentFormula
-                        ? `${currentFormula} ${refField.position}`
-                        : refField.position;
-                      handleFormChange("formula", newFormula);
+                      if (showRangeSelector) {
+                        if (!selectedRangeStart) {
+                          handleRangeStartSelect(refField);
+                        } else if (!selectedRangeEnd) {
+                          handleRangeEndSelect(refField);
+                        }
+                      } else {
+                        insertIndividualField(refField);
+                      }
                     }
                   }}
                   onMouseEnter={(e) => {
                     if (type === "calculation") {
-                      e.currentTarget.style.backgroundColor = "#e7f3ff";
+                      e.currentTarget.style.backgroundColor =
+                        showRangeSelector &&
+                        selectedRangeStart?.position === refField.position
+                          ? "#b6d4fe"
+                          : showRangeSelector &&
+                            selectedRangeEnd?.position === refField.position
+                          ? "#a3cfbb"
+                          : "#e7f3ff";
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (type === "calculation") {
-                      e.currentTarget.style.backgroundColor = "white";
+                      e.currentTarget.style.backgroundColor =
+                        showRangeSelector &&
+                        selectedRangeStart?.position === refField.position
+                          ? "#cfe2ff"
+                          : showRangeSelector &&
+                            selectedRangeEnd?.position === refField.position
+                          ? "#d1e7dd"
+                          : "white";
                     }
                   }}
                 >
@@ -320,21 +529,32 @@ const FieldEditorModal = ({
                   >
                     {refField.label}
                   </div>
-                  {/* Show that this is the current field */}
-                  {refField.position === field?.fieldPosition && (
+
+                  {/* Range selection indicators */}
+                  {showRangeSelector && (
                     <div
                       style={{
                         fontSize: "9px",
-                        color: "#28a745",
+                        color: "#6c757d",
                         marginTop: "2px",
-                        fontWeight: "bold",
                       }}
                     >
-                      (Current Field)
+                      {selectedRangeStart?.position === refField.position &&
+                        "← Range Start"}
+                      {selectedRangeEnd?.position === refField.position &&
+                        "← Range End"}
+                      {!selectedRangeStart && "Click to set as start"}
+                      {selectedRangeStart &&
+                        !selectedRangeEnd &&
+                        selectedRangeStart.position !== refField.position &&
+                        "Click to set as end"}
                     </div>
                   )}
+
+                  {/* Individual field indicator */}
                   {type === "calculation" &&
-                    refField.position !== field?.fieldPosition && (
+                    !showRangeSelector &&
+                    refField.position !== currentFieldPosition && (
                       <div
                         style={{
                           fontSize: "9px",
@@ -397,6 +617,9 @@ const FieldEditorModal = ({
                     Use field references like S1F1, S1F2, etc.
                     <br />
                     Operators: + (add), - (subtract), * (multiply), / (divide)
+                    <br />
+                    <strong>Excel-style ranges:</strong> S1F4:S1F13 (for SUM,
+                    AVERAGE, etc.)
                   </small>
                   <div
                     style={{
@@ -410,11 +633,22 @@ const FieldEditorModal = ({
                   >
                     <strong>Quick Examples:</strong>
                     <div style={{ marginTop: "4px" }}>
-                      • <code>{field?.fieldPosition || "S1F1"} + S1F2</code> -
-                      Add to another field
+                      • <code>S1F1 + S1F2</code> - Add two fields
+                      <br />• <code>SUM(S1F4:S1F13)</code> - Sum of range F4 to
+                      F13
+                      <br />• <code>AVERAGE(S1F4:S1F13)</code> - Average of
+                      range
+                      <br />• <code>MIN(S1F4:S1F13)</code> - Minimum value in
+                      range
+                      <br />• <code>MAX(S1F4:S1F13)</code> - Maximum value in
+                      range
+                      <br />• <code>COUNT(S1F4:S1F13)</code> - Count numeric
+                      values
                       <br />• <code>S1F3 * 0.1</code> - Multiply by 10%
                       <br />• <code>(S1F1 + S1F2) * S1F3</code> - Complex
                       calculation
+                      <br />• <code>SUM(S1F4, S1F5, S1F6)</code> - Sum specific
+                      fields
                     </div>
                   </div>
                 </div>

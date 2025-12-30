@@ -563,6 +563,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
             fieldPosition={position}
             allFormData={formData}
             fieldValueMap={createFieldValueMap}
+            allFields={getAllFieldsInfo} // NEW: Pass all fields info
             onEditField={() => {
               console.log("Opening editor for field:", {
                 name: fieldName,
