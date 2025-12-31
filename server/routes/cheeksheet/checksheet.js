@@ -9,12 +9,14 @@ const pool = require("../../db");
 router.post("/templates", async (req, res) => {
   const {
     name,
-    html_content,
-    field_configurations, // This now contains ALL field settings
+    html_content, // HTML with placeholders
+    original_html_content, // Original HTML
+    field_configurations,
     field_positions,
     sheets,
     form_values,
-    css_content = "", // Default to empty string
+    css_content = "",
+    images = {}, // Base64 images data
   } = req.body;
 
   if (!name) {
@@ -32,8 +34,8 @@ router.post("/templates", async (req, res) => {
     const templateRes = await client.query(
       `
       INSERT INTO checksheet_templates 
-      (name, html_content, field_configurations, field_positions, sheets, css_content)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      (name, html_content, field_configurations, field_positions, sheets, css_content, original_html_content)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id
       `,
       [
@@ -42,13 +44,70 @@ router.post("/templates", async (req, res) => {
         field_configurations ? JSON.stringify(field_configurations) : null,
         field_positions ? JSON.stringify(field_positions) : null,
         sheets ? JSON.stringify(sheets) : null,
-        css_content || "", // Ensure this is saved
+        css_content || "",
+        original_html_content || "",
       ]
     );
 
     const templateId = templateRes.rows[0].id;
 
-    // 2. Create fields array from field_configurations
+    // 2. Save images to template_images table
+    const savedImages = {};
+    if (images && Object.keys(images).length > 0) {
+      for (const [originalPath, imageData] of Object.entries(images)) {
+        try {
+          const imageRes = await client.query(
+            `
+            INSERT INTO template_images 
+            (template_id, original_path, filename, mime_type, image_data, size)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id
+            `,
+            [
+              templateId,
+              originalPath,
+              imageData.filename,
+              imageData.mimeType,
+              imageData.base64,
+              imageData.size,
+            ]
+          );
+
+          const imageId = imageRes.rows[0].id;
+          savedImages[originalPath] = imageId;
+
+          console.log(`Saved image: ${imageData.filename} with ID: ${imageId}`);
+        } catch (imgErr) {
+          console.error(`Failed to save image ${originalPath}:`, imgErr);
+          // Continue with other images
+        }
+      }
+    }
+
+    // 3. Update HTML to replace placeholders with API endpoints
+    let processedHtml = html_content;
+    if (Object.keys(savedImages).length > 0) {
+      // Replace IMAGE_PLACEHOLDER:path with /api/checksheet/templates/:id/images/:imageId
+      for (const [originalPath, imageId] of Object.entries(savedImages)) {
+        const placeholderRegex = new RegExp(
+          `src=["']IMAGE_PLACEHOLDER:${originalPath.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+          )}["']`,
+          "gi"
+        );
+        const imageUrl = `src="/api/checksheet/templates/${templateId}/images/${imageId}"`;
+        processedHtml = processedHtml.replace(placeholderRegex, imageUrl);
+      }
+    }
+
+    // Update the template with processed HTML
+    await client.query(
+      `UPDATE checksheet_templates SET html_content = $1 WHERE id = $2`,
+      [processedHtml, templateId]
+    );
+
+    // 4. Create fields array from field_configurations
     const fields = [];
 
     if (field_configurations && Object.keys(field_configurations).length > 0) {
@@ -58,7 +117,6 @@ router.post("/templates", async (req, res) => {
         cleanLabel = cleanLabel.replace(/<\/?[^>]+(>|$)/g, "").trim();
         cleanLabel = cleanLabel.replace(/&[a-z]+;/g, "").trim();
 
-        // If label is still too corrupted, use instanceId
         if (cleanLabel.length < 2) {
           cleanLabel = config.instanceId || `field_${Date.now()}`;
         }
@@ -71,7 +129,6 @@ router.post("/templates", async (req, res) => {
           label: cleanLabel,
           decimal_places: config.decimalPlaces || null,
           options: config.options || null,
-          // NEW: Save all additional settings
           bg_color: config.bgColor || "#ffffff",
           text_color: config.textColor || "#000000",
           exact_match_text: config.exactMatchText || null,
@@ -98,56 +155,9 @@ router.post("/templates", async (req, res) => {
           sheet_index: config.sheetIndex || 0,
         });
       });
-    } else {
-      // Fallback: Extract from HTML (legacy support)
-      const regex = /\{\{(\w+):([^:}]+)(?::(\d+))?(?::([^}]+))?\}\}/g;
-      const matches = [...(html_content || "").matchAll(regex)];
-      const uniqueLabels = new Set();
-
-      for (const match of matches) {
-        const [, typeRaw, labelRaw, decimalsRaw, optionsRaw] = match;
-        const type = typeRaw.toLowerCase();
-
-        // Clean the label properly
-        let label = labelRaw.trim();
-        label = label.replace(/<\/?[^>]+(>|$)/g, "").trim();
-        label = label.replace(/&[a-z]+;/g, "").trim();
-
-        if (uniqueLabels.has(label)) continue;
-        uniqueLabels.add(label);
-
-        const fieldName = label.replace(/\s+/g, "_").toLowerCase();
-        const decimalPlaces = decimalsRaw ? parseInt(decimalsRaw) : null;
-        const options = optionsRaw
-          ? optionsRaw.split(",").map((o) => o.trim())
-          : null;
-
-        fields.push({
-          field_name: fieldName,
-          field_type: type,
-          label,
-          decimal_places: decimalPlaces,
-          options,
-          // Default values for other settings
-          bg_color: "#ffffff",
-          text_color: "#000000",
-          min_length_mode: "warning",
-          min_length_warning_bg: "#ffebee",
-          max_length_mode: "warning",
-          max_length_warning_bg: "#fff3cd",
-          multiline: false,
-          auto_shrink_font: true,
-          bg_color_in_range: "#ffffff",
-          bg_color_below_min: "#e3f2fd",
-          bg_color_above_max: "#ffebee",
-          border_color_in_range: "#cccccc",
-          border_color_below_min: "#2196f3",
-          border_color_above_max: "#f44336",
-        });
-      }
     }
 
-    // 3. Create dynamic data table
+    // 5. Create dynamic data table
     const tableName = `checksheet_data_${templateId}`;
 
     let createTableSQL = `
@@ -185,13 +195,13 @@ router.post("/templates", async (req, res) => {
 
     await client.query(createTableSQL);
 
-    // 4. Save table name back to template
+    // 6. Save table name back to template
     await client.query(
       `UPDATE checksheet_templates SET table_name = $1 WHERE id = $2`,
       [tableName, templateId]
     );
 
-    // 5. Save field metadata with ALL settings
+    // 7. Save field metadata
     for (const field of fields) {
       await client.query(
         `
@@ -252,7 +262,8 @@ router.post("/templates", async (req, res) => {
     res.json({
       success: true,
       template_id: templateId,
-      message: "Form published successfully with all field configurations",
+      saved_images: Object.keys(savedImages).length,
+      message: "Form published successfully with images",
     });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -270,6 +281,233 @@ router.post("/templates", async (req, res) => {
 // ==============================
 // GET TEMPLATE BY ID (with all configurations) - FIXED VERSION
 // ==============================
+
+router.get("/templates/:id/images/:imageId", async (req, res) => {
+  const { id, imageId } = req.params;
+
+  try {
+    // First verify the template exists and image belongs to it
+    const imageRes = await pool.query(
+      `
+      SELECT ti.mime_type, ti.image_data, ti.filename
+      FROM template_images ti
+      WHERE ti.id = $1 AND ti.template_id = $2
+      `,
+      [imageId, id]
+    );
+
+    if (imageRes.rows.length === 0) {
+      return res.status(404).json({ error: "Image not found" });
+    }
+
+    const { mime_type, image_data, filename } = imageRes.rows[0];
+
+    if (!image_data) {
+      return res.status(404).json({ error: "Image data not found" });
+    }
+
+    // Convert base64 to buffer
+    const buffer = Buffer.from(image_data, "base64");
+
+    // Set headers
+    res.setHeader("Content-Type", mime_type);
+    res.setHeader("Content-Length", buffer.length);
+    res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+    res.setHeader("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
+    res.setHeader("ETag", `"${imageId}-${buffer.length}"`);
+
+    res.send(buffer);
+  } catch (err) {
+    console.error("Get image error:", err);
+    res.status(500).json({ error: "Failed to load image" });
+  }
+});
+
+// ==============================
+// NEW: GET ALL IMAGES FOR TEMPLATE (optional)
+// ==============================
+router.get("/templates/:id/images", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const imagesRes = await pool.query(
+      `
+      SELECT id, original_path, filename, mime_type, size, created_at
+      FROM template_images 
+      WHERE template_id = $1
+      ORDER BY filename
+      `,
+      [id]
+    );
+
+    res.json({
+      success: true,
+      images: imagesRes.rows,
+      count: imagesRes.rows.length,
+    });
+  } catch (err) {
+    console.error("Get images error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get images",
+    });
+  }
+});
+
+// ==============================
+// UPDATE GET TEMPLATE BY ID ENDPOINT
+// ==============================
+router.get("/templates/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Get template basic info
+    const templateRes = await pool.query(
+      `
+      SELECT 
+        id, name, html_content, field_configurations, 
+        field_positions, sheets, table_name, created_at,
+        css_content, original_html_content
+      FROM checksheet_templates 
+      WHERE id = $1
+      `,
+      [id]
+    );
+
+    if (templateRes.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Template not found",
+      });
+    }
+
+    // Get all field configurations
+    const fieldsRes = await pool.query(
+      `
+      SELECT 
+        field_name, field_type, label, decimal_places, options,
+        bg_color, text_color, exact_match_text, exact_match_bg_color,
+        min_length, min_length_mode, min_length_warning_bg,
+        max_length, max_length_mode, max_length_warning_bg,
+        multiline, auto_shrink_font,
+        min_value, max_value, bg_color_in_range, bg_color_below_min, 
+        bg_color_above_max, border_color_in_range, border_color_below_min, 
+        border_color_above_max, formula, position, instance_id, sheet_index
+      FROM template_fields 
+      WHERE template_id = $1 
+      ORDER BY id
+      `,
+      [id]
+    );
+
+    // Get images count for this template
+    const imagesRes = await pool.query(
+      `SELECT COUNT(*) as image_count FROM template_images WHERE template_id = $1`,
+      [id]
+    );
+
+    // Parse JSON fields
+    const template = templateRes.rows[0];
+
+    // Parse JSON data if it exists
+    if (template.field_configurations) {
+      try {
+        template.field_configurations =
+          typeof template.field_configurations === "string"
+            ? JSON.parse(template.field_configurations)
+            : template.field_configurations;
+      } catch (e) {
+        template.field_configurations = {};
+      }
+    } else {
+      template.field_configurations = {};
+    }
+
+    if (template.field_positions) {
+      try {
+        template.field_positions =
+          typeof template.field_positions === "string"
+            ? JSON.parse(template.field_positions)
+            : template.field_positions;
+      } catch (e) {
+        template.field_positions = {};
+      }
+    } else {
+      template.field_positions = {};
+    }
+
+    if (template.sheets) {
+      try {
+        template.sheets =
+          typeof template.sheets === "string"
+            ? JSON.parse(template.sheets)
+            : template.sheets;
+      } catch (e) {
+        template.sheets = [];
+      }
+    } else {
+      template.sheets = [];
+    }
+
+    // Process field data
+    const fields = fieldsRes.rows.map((field) => {
+      const processedField = {
+        field_name: field.field_name,
+        field_type: field.field_type,
+        label: field.label,
+        decimal_places: field.decimal_places,
+        options: field.options
+          ? typeof field.options === "string"
+            ? JSON.parse(field.options)
+            : field.options
+          : null,
+        bg_color: field.bg_color,
+        text_color: field.text_color,
+        exact_match_text: field.exact_match_text,
+        exact_match_bg_color: field.exact_match_bg_color,
+        min_length: field.min_length,
+        min_length_mode: field.min_length_mode,
+        min_length_warning_bg: field.min_length_warning_bg,
+        max_length: field.max_length,
+        max_length_mode: field.max_length_mode,
+        max_length_warning_bg: field.max_length_warning_bg,
+        multiline: field.multiline,
+        auto_shrink_font: field.auto_shrink_font,
+        min_value: field.min_value,
+        max_value: field.max_value,
+        bg_color_in_range: field.bg_color_in_range,
+        bg_color_below_min: field.bg_color_below_min,
+        bg_color_above_max: field.bg_color_above_max,
+        border_color_in_range: field.border_color_in_range,
+        border_color_below_min: field.border_color_below_min,
+        border_color_above_max: field.border_color_above_max,
+        formula: field.formula,
+        position: field.position,
+        instance_id: field.instance_id,
+        sheet_index: field.sheet_index,
+      };
+
+      return processedField;
+    });
+
+    res.json({
+      success: true,
+      template: {
+        ...template,
+        fields: fields,
+        image_count: parseInt(imagesRes.rows[0].image_count) || 0,
+      },
+    });
+  } catch (err) {
+    console.error("Get template error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      details: err.message,
+    });
+  }
+});
+
 // Update the GET template endpoint:
 
 router.get("/templates/:id", async (req, res) => {
@@ -602,19 +840,24 @@ router.delete("/templates/:id", async (req, res) => {
       }
     }
 
-    // 3. Delete field configurations
+    // 3. Delete images (CASCADE will handle this, but explicit is better)
+    await client.query("DELETE FROM template_images WHERE template_id = $1", [
+      id,
+    ]);
+
+    // 4. Delete field configurations
     await client.query("DELETE FROM template_fields WHERE template_id = $1", [
       id,
     ]);
 
-    // 4. Delete template
+    // 5. Delete template
     await client.query("DELETE FROM checksheet_templates WHERE id = $1", [id]);
 
     await client.query("COMMIT");
 
     res.json({
       success: true,
-      message: "Template deleted successfully",
+      message: "Template deleted successfully with all associated images",
     });
   } catch (err) {
     await client.query("ROLLBACK");

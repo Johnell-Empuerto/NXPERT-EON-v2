@@ -155,9 +155,9 @@
 /* Form Field Styling */
 .form-field-wrapper {
   display: inline-block;
-  margin: 2px;
   position: relative;
   vertical-align: top;
+  width: 100%;
 }
 
 .form-field-wrapper input[type="text"],
@@ -166,7 +166,6 @@
 .form-field-wrapper select,
 .form-field-wrapper textarea {
   width: 100%;
-  min-width: 50px;
   border: 1px solid #ced4da;
   padding: 8px 12px;
   font-size: 14px;

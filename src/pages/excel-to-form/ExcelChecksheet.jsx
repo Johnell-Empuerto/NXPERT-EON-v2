@@ -445,7 +445,32 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         try {
           const blob = await zip.files[filename].async("blob");
           const name = filename.split("/").pop();
-          imageMap[name] = URL.createObjectURL(blob);
+
+          // Convert blob to base64 for database storage
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const result = reader.result;
+              // Get base64 string (remove data:image/png;base64, prefix)
+              const base64String = result.split(",")[1];
+              resolve(base64String);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+
+          // Create blob URL for immediate display
+          const blobUrl = URL.createObjectURL(blob);
+
+          // Store both base64 and blob URL
+          imageMap[name] = {
+            base64: base64,
+            blobUrl: blobUrl,
+            filename: name,
+            mimeType: blob.type,
+            size: blob.size,
+            originalPath: filename,
+          };
         } catch (err) {
           console.warn(`Failed to load image: ${filename}`, err);
         }
@@ -456,14 +481,15 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
 
   const rewriteImageUrls = (html, imageMap) => {
     let result = html;
-    Object.entries(imageMap).forEach(([name, url]) => {
+    Object.entries(imageMap).forEach(([name, imageData]) => {
+      // Use blob URL for immediate display
       result = result.replace(
-        new RegExp(`src=["']([^"']*${name})["']`, "g"),
-        `src="${url}"`
+        new RegExp(`src=["']([^"']*${name})["']`, "gi"),
+        `src="${imageData.blobUrl}"`
       );
       result = result.replace(
-        new RegExp(`src=["']${name}["']`, "g"),
-        `src="${url}"`
+        new RegExp(`src=["']${name}["']`, "gi"),
+        `src="${imageData.blobUrl}"`
       );
     });
     return result;
@@ -521,22 +547,16 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       const sheetFile = sheetFiles[i];
       let html = await sheetFile.async("text");
 
-      // === NEW: TRIM HTML AT {{END}} ===
+      // === TRIM HTML AT {{END}} ===
       const endMarkerIndex = html.indexOf("{{END}}");
       if (endMarkerIndex !== -1) {
-        // Find the end of the current table row containing {{END}}
         const htmlBeforeEnd = html.substring(0, endMarkerIndex);
-
-        // Find the closing </tr> tag after {{END}}
         const afterEnd = html.substring(endMarkerIndex);
         const trCloseIndex = afterEnd.indexOf("</tr>");
 
         if (trCloseIndex !== -1) {
-          // Remove everything from the start of the row containing {{END}}
-          // We need to find the opening <tr> for this row
           const lastTrOpenIndex = htmlBeforeEnd.lastIndexOf("<tr");
           if (lastTrOpenIndex !== -1) {
-            // Keep everything up to this <tr> opening tag
             html = html.substring(0, lastTrOpenIndex);
           }
         }
@@ -554,7 +574,8 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       loadedSheets.push({
         id: sheetFile.name,
         name: sheetNames[i] || `Sheet ${i + 1}`,
-        html,
+        html: html, // Store original HTML
+        originalHtml: html, // Keep original for reference
         index: i,
       });
     }
@@ -566,9 +587,10 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     const imageMap = await extractImages(zip);
     setImages(imageMap);
 
+    // Create processed sheets with blob URLs for display
     const processedSheets = loadedSheets.map((sheet) => ({
       ...sheet,
-      html: rewriteImageUrls(sheet.html, imageMap),
+      html: rewriteImageUrls(sheet.html, imageMap), // HTML with blob URLs for display
     }));
 
     setSheets(processedSheets);
@@ -854,7 +876,8 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       const allPositions = {};
 
       for (let i = 0; i < sheets.length; i++) {
-        const result = extractFieldConfigs(sheets[i].html, i);
+        // Use original HTML for field extraction
+        const result = extractFieldConfigs(sheets[i].originalHtml, i);
         if (result.error) {
           alert(`Error in sheet "${sheets[i].name}": ${result.error}`);
           return;
@@ -874,7 +897,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         cleanLabel = cleanLabel.replace(/<\/?[^>]+(>|$)/g, "").trim();
         cleanLabel = cleanLabel.replace(/&[a-z]+;/g, "").trim();
 
-        // If label is still corrupted, use a fallback
         if (cleanLabel.length < 2) {
           cleanLabel = config.originalLabel || `Field_${Date.now()}`;
         }
@@ -882,7 +904,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         cleanedConfigs[key] = {
           ...config,
           label: cleanLabel,
-          // Ensure all settings have proper values
           bgColor: config.bgColor || "#ffffff",
           textColor: config.textColor || "#000000",
           exactMatchText: config.exactMatchText || "",
@@ -910,59 +931,74 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         };
       });
 
-      // === FIXED: Get CSS from the injected style tag, NOT from sheet.html ===
+      // Get CSS
       let allCSS = "";
-
-      // Method 1: Get CSS from the injected style tag
       const excelCSS = document.getElementById("excel-css");
       if (excelCSS) {
         allCSS = excelCSS.innerHTML;
-        console.log(
-          "Got CSS from #excel-css style tag:",
-          allCSS.length,
-          "chars"
-        );
-      } else {
-        console.warn(
-          "#excel-css style tag not found, trying alternative methods"
-        );
+      }
 
-        // Method 2: Check if we have stylesheet.css in the original sheets
-        sheets.forEach((sheet) => {
-          if (sheet.html) {
-            // Look for style tags in the original HTML (before injection)
-            const tempDiv = document.createElement("div");
-            tempDiv.innerHTML = sheet.html;
-            tempDiv.querySelectorAll("style").forEach((styleTag) => {
-              allCSS += styleTag.innerHTML + "\n\n";
-            });
-            tempDiv.remove();
+      if (!allCSS.trim()) {
+        allCSS = `
+      /* Default Excel-like styles */
+      table {
+        border-collapse: collapse;
+        border-spacing: 0;
+      }
+      td, th {
+        border: 1px solid #d4d4d4;
+        padding: 2px 4px;
+        font-family: Arial, sans-serif;
+      }
+      .xl65 {
+        color: #000000;
+        font-size: 11pt;
+      }
+    `;
+      }
+
+      // Prepare images data for database
+      const imagesData = {};
+      if (images && Object.keys(images).length > 0) {
+        Object.entries(images).forEach(([name, imageData]) => {
+          if (imageData.base64) {
+            imagesData[imageData.originalPath] = {
+              base64: imageData.base64,
+              mimeType: imageData.mimeType,
+              filename: name,
+              size: imageData.size,
+            };
           }
         });
       }
 
-      console.log("Collected CSS length:", allCSS.length);
+      // Prepare HTML with image placeholders for database storage
+      let htmlForDatabase = "";
+      if (Object.keys(images).length > 0) {
+        // Use original HTML and replace image references with placeholders
+        const originalHtmlContent = sheets
+          .map((sheet) => sheet.originalHtml)
+          .join("<div style='page-break-before:always'></div>");
 
-      // If still no CSS, add minimal default Excel-like styles
-      if (!allCSS.trim()) {
-        allCSS = `
-        /* Default Excel-like styles */
-        table {
-          border-collapse: collapse;
-          border-spacing: 0;
-        }
-        td, th {
-          border: 1px solid #d4d4d4;
-          padding: 2px 4px;
-          font-family: Arial, sans-serif;
-        }
-        .xl65 {
-          color: #000000;
-          font-size: 11pt;
-        }
-      `;
-        console.warn("No CSS found, using default styles");
+        let tempHtml = originalHtmlContent;
+        Object.entries(images).forEach(([name, imageData]) => {
+          const placeholder = `IMAGE_PLACEHOLDER:${imageData.originalPath}`;
+          tempHtml = tempHtml.replace(
+            new RegExp(`src=["'][^"']*${name}["']`, "gi"),
+            `src="${placeholder}"`
+          );
+        });
+        htmlForDatabase = tempHtml;
+      } else {
+        htmlForDatabase = sheets
+          .map((sheet) => sheet.originalHtml)
+          .join("<div style='page-break-before:always'></div>");
       }
+
+      // Get original HTML content
+      const originalHtmlContent = sheets
+        .map((sheet) => sheet.originalHtml)
+        .join("<div style='page-break-before:always'></div>");
 
       const filledValues = Object.fromEntries(
         Object.entries(formData)
@@ -974,17 +1010,18 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         "http://localhost:5000/api/checksheet/templates",
         {
           name: formName,
-          html_content: sheets
-            .map((s) => s.html)
-            .join("<div style='page-break-before:always'></div>"),
-          css_content: allCSS.trim(), // Send trimmed CSS
+          html_content: htmlForDatabase, // HTML with placeholders
+          original_html_content: originalHtmlContent, // Original HTML
+          css_content: allCSS.trim(),
           field_configurations: cleanedConfigs,
           field_positions: allPositions,
           form_values: filledValues,
+          images: imagesData, // Send images to database
           sheets: sheets.map((s) => ({
             id: s.id,
             name: s.name,
-            html: s.html,
+            html: s.html, // HTML with blob URLs (for reference)
+            originalHtml: s.originalHtml,
             index: s.index,
           })),
           last_updated: new Date().toISOString(),

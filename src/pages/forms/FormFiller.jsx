@@ -46,7 +46,6 @@ const FormFiller = () => {
   };
 
   // Cleanup injected CSS when component unmounts
-  // In FormFiller.jsx, update the useEffect cleanup
   useEffect(() => {
     return () => {
       // Clean up injected CSS
@@ -71,10 +70,6 @@ const FormFiller = () => {
     checkAuthAndLoad();
   }, [templateId, navigate]);
 
-  // In FormFiller.js, update the loadTemplate function:
-
-  // src/pages/forms/FormFiller.jsx - Update the loadTemplate function
-
   const loadTemplate = async () => {
     setLoading(true);
     setError(null);
@@ -97,25 +92,11 @@ const FormFiller = () => {
         // === Inject the saved CSS ===
         if (templateData.css_content && templateData.css_content.trim()) {
           const style = document.createElement("style");
-          style.id = "excel-css-filler"; // Unique ID for filler
+          style.id = "excel-css-filler";
           style.innerHTML = templateData.css_content;
           document.head.appendChild(style);
-          console.log(
-            "CSS injected successfully:",
-            templateData.css_content.length,
-            "chars"
-          );
         } else {
           console.warn("No CSS content found in template");
-
-          // Try alternative: check if CSS is in field_configurations
-          if (templateData.field_configurations?.css_content) {
-            const style = document.createElement("style");
-            style.id = "excel-css-filler";
-            style.innerHTML = templateData.field_configurations.css_content;
-            document.head.appendChild(style);
-            console.log("CSS injected from field_configurations");
-          }
         }
 
         // Initialize form data
@@ -190,7 +171,7 @@ const FormFiller = () => {
 
       if (response.data.success) {
         alert("Form submitted successfully!");
-        navigate("/forms");
+        navigate("/dashboard/forms"); // FIXED: Use absolute path
       }
     } catch (err) {
       console.error("Submit error:", err);
@@ -209,7 +190,7 @@ const FormFiller = () => {
     }
   };
 
-  // Pan & Zoom logic
+  // Pan & Zoom logic (keep as is)
   useEffect(() => {
     const scaler = scalerRef.current;
     const container = containerRef.current;
@@ -285,7 +266,7 @@ const FormFiller = () => {
     };
   }, [template]);
 
-  // Parse HTML with field replacement
+  // Parse HTML with field replacement (keep as is)
   const parseOptions = {
     replace: (node) => {
       if (node.type !== "text") return;
@@ -464,7 +445,10 @@ const FormFiller = () => {
       <div className="error-container">
         <h2>Error</h2>
         <p>{error}</p>
-        <button onClick={() => navigate("/forms")} className="back-btn">
+        <button
+          onClick={() => navigate("/dashboard/forms")} // FIXED: Use absolute path
+          className="back-btn"
+        >
           Back to Forms
         </button>
       </div>
@@ -474,7 +458,10 @@ const FormFiller = () => {
     return (
       <div className="error-container">
         <h2>Form Not Found</h2>
-        <button onClick={() => navigate("/forms")} className="back-btn">
+        <button
+          onClick={() => navigate("/dashboard/forms")} // FIXED: Use absolute path
+          className="back-btn"
+        >
           Back to Forms
         </button>
       </div>
@@ -488,7 +475,10 @@ const FormFiller = () => {
           <p className="form-description">Fill out the form below</p>
         </div>
         <div className="header-actions">
-          <button onClick={() => navigate("/forms")} className="back-btn">
+          <button
+            onClick={() => navigate("/dashboard/forms")} // FIXED: Use absolute path
+            className="back-btn"
+          >
             ← Back to Forms
           </button>
           <button
