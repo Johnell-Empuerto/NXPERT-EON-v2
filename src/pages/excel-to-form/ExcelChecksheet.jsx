@@ -44,6 +44,34 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
 
   const scaleRef = useRef(1);
 
+  // Add this to your main component (ExcelChecksheet.js)
+  useEffect(() => {
+    const handleDocumentClick = (e) => {
+      // Close all tooltips when clicking outside
+      const tooltips = document.querySelectorAll(".input-tooltip.visible");
+      if (tooltips.length > 0) {
+        const isClickInsideTooltip = Array.from(tooltips).some((tooltip) =>
+          tooltip.contains(e.target)
+        );
+        const isClickOnInput =
+          e.target.tagName === "INPUT" ||
+          e.target.tagName === "SELECT" ||
+          e.target.tagName === "TEXTAREA";
+
+        if (!isClickInsideTooltip && !isClickOnInput) {
+          tooltips.forEach((tooltip) => {
+            tooltip.classList.remove("visible");
+          });
+        }
+      }
+    };
+
+    document.addEventListener("click", handleDocumentClick);
+    return () => {
+      document.removeEventListener("click", handleDocumentClick);
+    };
+  }, []);
+
   useEffect(() => {
     if (
       prevSheetIndexRef.current !== null &&

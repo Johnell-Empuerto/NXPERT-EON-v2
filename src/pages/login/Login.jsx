@@ -318,7 +318,7 @@ const Login = ({ setIsLoggedIn, setUser }) => {
           <div className="login-header">
             <div className="brand-logo-row">
               <FontAwesomeIcon icon={faChartLine} className="brand-icon" />
-              <h1 className="brand-title">NXPERT EON</h1>
+              <h1 className="brand-title">NXPERT PRIME</h1>
             </div>
             <p className="brand-subtitle">
               {showForgotPassword

@@ -1,0 +1,141 @@
+/* Tooltip.css */
+.tooltip-container {
+  position: relative;
+  display: inline-block;
+}
+.input-tooltip {
+  position: absolute;
+  background: linear-gradient(135deg, #4a90e2 0%, #357ae8 100%);
+  color: white;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  z-index: 9999;
+  max-width: 280px;
+  min-width: 150px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateY(10px);
+  pointer-events: none;
+  /* Comment bubble styling */
+  border-left: 4px solid #2c6bb4;
+  line-height: 1.4;
+}
+.input-tooltip.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+.tooltip-content {
+  position: relative;
+  z-index: 2;
+}
+.tooltip-arrow {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+/* Position-specific styles */
+.input-tooltip.position-top {
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 10px;
+}
+.input-tooltip.position-top.visible {
+  transform: translateX(-50%);
+}
+.input-tooltip.position-top .tooltip-arrow {
+  top: 100%;
+  left: 50%;
+  margin-left: -8px;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid #4a90e2;
+}
+
+.input-tooltip.position-bottom {
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 10px;
+}
+.input-tooltip.position-bottom.visible {
+  transform: translateX(-50%);
+}
+.input-tooltip.position-bottom .tooltip-arrow {
+  bottom: 100%;
+  left: 50%;
+  margin-left: -8px;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid #4a90e2;
+}
+
+.input-tooltip.position-left {
+  top: 50%;
+  right: 100%;
+  transform: translateY(-50%);
+  margin-right: 10px;
+}
+.input-tooltip.position-left.visible {
+  transform: translateY(-50%);
+}
+.input-tooltip.position-left .tooltip-arrow {
+  left: 100%;
+  top: 50%;
+  margin-top: -8px;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 8px solid #4a90e2;
+}
+
+.input-tooltip.position-right {
+  top: 50%;
+  left: 100%;
+  transform: translateY(-50%);
+  margin-left: 10px;
+}
+.input-tooltip.position-right.visible {
+  transform: translateY(-50%);
+}
+.input-tooltip.position-right .tooltip-arrow {
+  right: 100%;
+  top: 50%;
+  margin-top: -8px;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-right: 8px solid #4a90e2;
+}
+
+/* For touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .input-tooltip {
+    font-size: 14px;
+    padding: 12px 16px;
+    max-width: 260px;
+    border-radius: 10px;
+  }
+  /* Add tap hint for first-time users */
+  .tooltip-container:first-child .input-tooltip.visible::before {
+    content: "Tap anywhere to close";
+    display: block;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.8);
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+  }
+}
+
+/* For desktop with mouse */
+@media (hover: hover) and (pointer: fine) {
+  .input-tooltip {
+    /* Desktop-specific styles if needed */
+  }
+}

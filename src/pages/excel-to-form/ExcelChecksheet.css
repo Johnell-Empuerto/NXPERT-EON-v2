@@ -1,38 +1,158 @@
-/* FormField Styles */
-.input-container {
-  display: inline-block;
-  width: 100%;
-  position: relative;
+/* ============================================
+   EXCEL CHECK SHEET CSS - ORGANIZED & CLEANED
+   ============================================ */
+
+/* ============ 1. BASE & GLOBAL STYLES ============ */
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  font-family: sans-serif;
+  background-color: #f4f4f4;
 }
 
-.form-input {
-  width: 100%;
-  min-width: 50px;
-  border: 1px solid rgb(204, 204, 204);
-  padding: 8px 30px 8px 4px; /* extra right padding for icons */
-  font-size: inherit;
-  font-family: inherit;
-  background: rgb(255, 255, 255);
-  box-sizing: border-box;
-  position: relative;
-  border-radius: 0;
+/* ============ 2. HEADER & ACTIONS ============ */
+.excel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
 }
 
+.excel-header h3 {
+  margin: 0;
+  color: #333;
+}
+
+.excel-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ============ 3. BUTTON STYLES ============ */
+.upload-btn,
+.primary-btn,
+.save-btn,
+.btn-primary,
+.btn-secondary,
+.sheet-tab {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.upload-btn {
+  background-color: #6c757d;
+  color: white;
+}
+
+.primary-btn {
+  background-color: #007bff;
+  color: white;
+}
+
+.primary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #007bff;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #0056b3;
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: #545b62;
+}
+
+.save-btn {
+  background: #28a745;
+  color: white;
+}
+
+.save-btn:hover {
+  background: #218838;
+}
+
+.save-btn:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+}
+
+/* ============ 4. FORM & INPUT STYLES ============ */
+.form-name-input {
+  padding: 8px 16px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 14px;
+  min-width: 200px;
+}
+
+.form-input,
 .form-select {
   width: 100%;
   min-width: 50px;
   border: 1px solid rgb(204, 204, 204);
-  padding: 8px 40px 8px 4px; /* make room for arrow + resize icons */
+  padding: 8px 12px;
   font-size: inherit;
   font-family: inherit;
   background: rgb(255, 255, 255);
   box-sizing: border-box;
   position: relative;
+  border-radius: 0;
+}
+
+.form-input {
+  padding-right: 30px; /* extra right padding for icons */
+}
+
+.form-select {
+  padding-right: 40px; /* make room for arrow + resize icons */
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
-  border-radius: 0;
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-name-input:focus {
+  border-color: #80bdff;
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* ============ 5. FORM FIELD COMPONENTS ============ */
+.form-field-with-edit {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin: 2px;
+}
+
+.input-container {
+  display: inline-block;
+  width: 100%;
+  position: relative;
 }
 
 .resize-handle {
@@ -49,190 +169,6 @@
   cursor: pointer;
   user-select: none;
   z-index: 10;
-}
-
-.checkbox-container {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.form-checkbox {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-}
-
-.unknown-type {
-  color: red;
-}
-
-/* Main Component Styles */
-.container {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  font-family: sans-serif;
-  background-color: #f4f4f4;
-}
-
-.header {
-  background-color: #fff;
-  padding: 15px 20px;
-  border-bottom: 1px solid #ddd;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.actions {
-  display: flex;
-  gap: 10px;
-}
-
-.primary-btn {
-  padding: 10px 20px;
-  background-color: #28a745;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-.upload-btn {
-  padding: 10px 20px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-.error-banner {
-  background-color: #f8d7da;
-  color: #721c24;
-  padding: 15px;
-  text-align: center;
-  border-bottom: 1px solid #f5c6cb;
-}
-
-.loading {
-  text-align: center;
-  padding: 20px;
-  color: #666;
-  font-style: italic;
-}
-
-.preview-area {
-  flex: 1;
-  padding: 20px;
-  overflow: auto;
-  display: flex;
-  justify-content: center;
-}
-
-.excel-scope {
-  border: 1px solid #ddd;
-  background: white;
-  padding: 20px;
-  width: fit-content;
-  overflow: auto;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.placeholder {
-  margin-top: 20px;
-  color: #555;
-  text-align: center;
-  border: 2px dashed #ccc;
-  padding: 40px;
-  background: #fff;
-  width: 80%;
-  max-width: 800px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-}
-
-.placeholder-icon {
-  font-size: 40px;
-  margin-bottom: 20px;
-}
-
-.placeholder-list {
-  text-align: left;
-  display: inline-block;
-  margin-bottom: 20px;
-}
-
-.placeholder-note {
-  font-size: 0.9em;
-  color: #666;
-  margin-left: 20px;
-}
-
-.instructions {
-  margin-top: 30px;
-  padding: 20px;
-  background-color: #f8f9fa;
-  border-left: 4px solid #007bff;
-}
-
-.instructions-list {
-  text-align: left;
-  display: inline-block;
-}
-
-.excel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding: 15px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
-}
-
-.excel-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.upload-btn {
-  padding: 10px 20px;
-  background-color: #6c757d;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.primary-btn {
-  padding: 10px 20px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.primary-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-/* === Field Edit Button Styles === */
-.form-field-with-edit {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  margin: 2px;
 }
 
 .edit-field-btn {
@@ -256,11 +192,141 @@
 }
 
 /* Checkbox field special styling */
+.checkbox-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .checkbox-container + .edit-field-btn {
   margin-top: 8px;
 }
 
-/* === Modal Styles === */
+.form-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.unknown-type {
+  color: red;
+}
+
+/* ============ 6. SHEET & TAB NAVIGATION ============ */
+.sheet-navigation {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 15px 0;
+  padding: 10px 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}
+
+.sheet-tabs {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.sheet-tab {
+  background-color: #fff;
+  border: 1px solid #dee2e6;
+  color: #333;
+}
+
+.sheet-tab:hover {
+  background-color: #e9ecef;
+  border-color: #adb5bd;
+}
+
+.sheet-tab.active {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.sheet-info {
+  font-size: 14px;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.sheet-header {
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #007bff;
+}
+
+.sheet-header h4 {
+  margin: 0;
+  color: #343a40;
+  font-size: 18px;
+}
+
+/* ============ 7. PREVIEW & EXCEL AREA ============ */
+.preview-area {
+  flex: 1;
+  padding: 20px;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+}
+
+.excel-preview-container {
+  flex: 1;
+  padding: 20px;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #f0f0f0;
+  position: relative;
+}
+
+.excel-preview-scaler {
+  transform-origin: top left;
+  cursor: grab;
+  transition: transform 0.1s ease-out;
+  width: fit-content;
+  min-width: 100%;
+}
+
+.excel-preview-scaler:active {
+  cursor: grabbing;
+}
+
+.excel-scope {
+  border: 1px solid #ddd;
+  background: white;
+  padding: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  overflow: visible;
+  position: relative;
+  width: fit-content;
+}
+
+/* Optional subtle background grid */
+.excel-preview-container::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    rgba(0, 0, 0, 0.02) 10px,
+    rgba(0, 0, 0, 0.02) 20px
+  );
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ============ 8. MODAL STYLES ============ */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -320,58 +386,7 @@
   border-top: 1px solid #eee;
 }
 
-.btn-primary {
-  padding: 8px 16px;
-  background: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background 0.2s;
-}
-
-.btn-secondary {
-  padding: 8px 16px;
-  background: #6c757d;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background 0.2s;
-}
-
-.btn-primary:hover {
-  background: #0056b3;
-}
-
-.btn-secondary:hover {
-  background: #545b62;
-}
-
-/* === Save Button Styles === */
-.save-btn {
-  padding: 8px 16px;
-  background: #28a745;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background 0.2s;
-}
-
-.save-btn:hover {
-  background: #218838;
-}
-
-.save-btn:disabled {
-  background: #cccccc;
-  cursor: not-allowed;
-}
-
-/* === Edit Note === */
+/* Edit Note */
 .edit-note {
   margin-top: 20px;
   padding: 10px;
@@ -382,113 +397,22 @@
   color: #495057;
 }
 
-/* === Responsive Design === */
-@media (max-width: 768px) {
-  .modal-content {
-    min-width: 90%;
-    margin: 10px;
-  }
-
-  .form-field-with-edit {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .edit-field-btn {
-    margin-left: 0;
-    margin-top: 5px;
-  }
+/* ============ 10. STATUS & FEEDBACK STYLES ============ */
+.error-banner {
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 15px;
+  text-align: center;
+  border-bottom: 1px solid #f5c6cb;
 }
 
-/* === Input Field Styles for Modal === */
-.modal-content .form-input,
-.modal-content .form-select {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  font-size: 14px;
-  transition: border-color 0.15s ease-in-out;
-}
-
-.modal-content .form-input:focus,
-.modal-content .form-select:focus {
-  border-color: #80bdff;
-  outline: 0;
-  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-}
-
-/* === Action Button Container === */
-.excel-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.upload-btn,
-.primary-btn,
-.save-btn,
-.form-name-input {
-  padding: 8px 16px;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.form-name-input {
-  border: 1px solid #ced4da;
-  min-width: 200px;
-}
-.excel-preview-container {
-  flex: 1;
+.loading {
+  text-align: center;
   padding: 20px;
-  overflow: hidden;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  background: #f0f0f0;
-  position: relative;
+  color: #666;
+  font-style: italic;
 }
 
-.excel-preview-scaler {
-  transform-origin: top left;
-  cursor: grab;
-  transition: transform 0.1s ease-out;
-  width: fit-content;
-  min-width: 100%;
-}
-
-.excel-preview-scaler:active {
-  cursor: grabbing;
-}
-
-.excel-scope {
-  border: 1px solid #ddd;
-  background: white;
-  padding: 20px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  overflow: visible;
-}
-
-/* Optional subtle background grid */
-.excel-preview-container::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: repeating-linear-gradient(
-    45deg,
-    transparent,
-    transparent 10px,
-    rgba(0, 0, 0, 0.02) 10px,
-    rgba(0, 0, 0, 0.02) 20px
-  );
-  pointer-events: none;
-  z-index: -1;
-}
-/* Add to your CSS file */
 .validation-errors {
   font-size: 11px;
   color: #d32f2f;
@@ -523,70 +447,240 @@
   display: block;
   margin-bottom: 4px;
 }
-/* ExcelChecksheet.css additions */
 
-.sheet-navigation {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 15px 0;
-  padding: 10px 15px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #dee2e6;
+/* ============ 11. PLACEHOLDER & INSTRUCTIONS ============ */
+.placeholder {
+  margin-top: 20px;
+  color: #555;
+  text-align: center;
+  border: 2px dashed #ccc;
+  padding: 40px;
+  background: #fff;
+  width: 80%;
+  max-width: 800px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 }
 
-.sheet-tabs {
-  display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
-}
-
-.sheet-tab {
-  padding: 8px 16px;
-  background-color: #fff;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s ease;
-}
-
-.sheet-tab:hover {
-  background-color: #e9ecef;
-  border-color: #adb5bd;
-}
-
-.sheet-tab.active {
-  background-color: #007bff;
-  color: white;
-  border-color: #007bff;
-}
-
-.sheet-info {
-  font-size: 14px;
-  color: #6c757d;
-  font-weight: 500;
-}
-
-.sheet-header {
+.placeholder-icon {
+  font-size: 40px;
   margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 2px solid #007bff;
 }
 
-.sheet-header h4 {
-  margin: 0;
-  color: #343a40;
-  font-size: 18px;
+.placeholder-list {
+  text-align: left;
+  display: inline-block;
+  margin-bottom: 20px;
 }
 
-.excel-scope {
-  position: relative;
+.placeholder-note {
+  font-size: 0.9em;
+  color: #666;
+  margin-left: 20px;
 }
 
-/* Ensure form fields work correctly with multiple sheets */
-.form-field-wrapper {
-  position: relative;
-  margin: 2px;
+.instructions {
+  margin-top: 30px;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-left: 4px solid #007bff;
+}
+
+.instructions-list {
+  text-align: left;
+  display: inline-block;
+}
+
+/* ============================================
+   MEDIA QUERIES - ALL AT THE BOTTOM
+   ============================================ */
+
+/* For mobile/tablet devices */
+@media (hover: none) and (pointer: coarse) {
+  .input-tooltip {
+    font-size: 14px; /* Slightly larger for touch */
+    padding: 10px 14px;
+    max-width: 280px;
+  }
+
+  /* Make tooltips more prominent on mobile */
+  .input-tooltip.visible {
+    animation: tooltipPulse 2s infinite;
+  }
+
+  @keyframes tooltipPulse {
+    0%,
+    100% {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    50% {
+      box-shadow: 0 4px 20px rgba(74, 144, 226, 0.3);
+    }
+  }
+}
+
+/* Tablet and smaller desktop screens */
+@media (max-width: 1024px) {
+  .modal-content {
+    min-width: 90%;
+    max-width: 90%;
+    margin: 10px;
+  }
+
+  .excel-scope {
+    padding: 15px;
+  }
+
+  .sheet-navigation {
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .sheet-tabs {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 5px;
+  }
+}
+
+/* Mobile screens */
+@media (max-width: 768px) {
+  .excel-header {
+    flex-direction: column;
+    gap: 15px;
+    align-items: flex-start;
+  }
+
+  .excel-actions {
+    width: 100%;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .upload-btn,
+  .primary-btn,
+  .save-btn,
+  .form-name-input {
+    width: 100%;
+  }
+
+  .form-field-with-edit {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .edit-field-btn {
+    margin-left: 0;
+    margin-top: 5px;
+    align-self: flex-end;
+  }
+
+  .modal-content {
+    min-width: 95%;
+    max-width: 95%;
+    padding: 16px;
+  }
+
+  .modal-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+  }
+
+  .preview-area {
+    padding: 10px;
+  }
+
+  .excel-preview-container {
+    padding: 10px;
+  }
+
+  .excel-scope {
+    padding: 10px;
+  }
+
+  .placeholder {
+    padding: 20px;
+    width: 95%;
+  }
+}
+
+/* Small mobile screens */
+@media (max-width: 480px) {
+  .container {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .excel-header h3 {
+    font-size: 18px;
+  }
+
+  .form-input,
+  .form-select {
+    font-size: 16px; /* Better for mobile inputs */
+  }
+
+  .sheet-tab {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .instructions {
+    padding: 15px;
+  }
+
+  .instructions-list {
+    font-size: 14px;
+  }
+}
+
+/* For desktop with mouse */
+@media (hover: hover) and (pointer: fine) {
+  .excel-preview-scaler:hover {
+    cursor: grab;
+  }
+
+  .edit-field-btn:hover {
+    opacity: 1;
+    background: #e0e0e0;
+    transform: scale(1.05);
+  }
+
+  .sheet-tab:hover {
+    background-color: #e9ecef;
+    border-color: #adb5bd;
+  }
+
+  .btn-primary:hover {
+    background: #0056b3;
+  }
+
+  .btn-secondary:hover {
+    background: #545b62;
+  }
+
+  .save-btn:hover {
+    background: #218838;
+  }
+
+  .primary-btn:hover {
+    background-color: #0056b3;
+  }
+
+  .upload-btn:hover {
+    background-color: #5a6268;
+  }
+}
+
+/* High DPI/Retina screens */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .form-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23666' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+    background-size: 12px 12px;
+  }
 }

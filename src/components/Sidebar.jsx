@@ -48,7 +48,7 @@ const AppSidebar = ({ onLinkClick }) => {
             letterSpacing: "0.5px",
           }}
         >
-          NXPERT EON
+          NXPERT PRIME
         </h2>
       </div>
 
