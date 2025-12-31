@@ -10,6 +10,8 @@ import "./Dashboard.css";
 import DashboardHome from "./DashboardHome";
 import ProductionPlanning from "../productionPlanning/ProductionPlanning";
 import ExcelChecksheet from "../excel-to-form/ExcelChecksheet";
+import Forms from "../forms/Forms";
+import FormFiller from "../forms/FormFiller";
 
 const Dashboard = ({ user, setUser, handleLogout }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -80,6 +82,10 @@ const Dashboard = ({ user, setUser, handleLogout }) => {
             element={<div>Analytics & Insights - Coming Soon</div>}
           />
           <Route path="/create-checksheet" element={<ExcelChecksheet />} />
+
+          <Route path="/forms" element={<Forms />} />
+
+          <Route path="/fill-form/:templateId" element={<FormFiller />} />
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

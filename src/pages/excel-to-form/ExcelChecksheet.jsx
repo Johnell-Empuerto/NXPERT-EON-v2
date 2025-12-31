@@ -842,6 +842,8 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     fieldInstances,
   ]);
 
+  // In your ExcelChecksheet.js, update the handlePublish function:
+
   const handlePublish = async () => {
     if (!formName.trim()) return alert("Please enter a form name");
     if (sheets.length === 0) return alert("No content to publish");
@@ -861,6 +863,107 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         Object.assign(allPositions, assignFieldPositions(result.instances));
       }
 
+      // Merge with any user-edited configurations
+      const finalConfigs = { ...allConfigs, ...fieldConfigs };
+
+      // Clean up field configurations before sending
+      const cleanedConfigs = {};
+      Object.entries(finalConfigs).forEach(([key, config]) => {
+        // Clean label - remove HTML tags
+        let cleanLabel = config.label || "";
+        cleanLabel = cleanLabel.replace(/<\/?[^>]+(>|$)/g, "").trim();
+        cleanLabel = cleanLabel.replace(/&[a-z]+;/g, "").trim();
+
+        // If label is still corrupted, use a fallback
+        if (cleanLabel.length < 2) {
+          cleanLabel = config.originalLabel || `Field_${Date.now()}`;
+        }
+
+        cleanedConfigs[key] = {
+          ...config,
+          label: cleanLabel,
+          // Ensure all settings have proper values
+          bgColor: config.bgColor || "#ffffff",
+          textColor: config.textColor || "#000000",
+          exactMatchText: config.exactMatchText || "",
+          exactMatchBgColor: config.exactMatchBgColor || "#d4edda",
+          minLength: config.minLength || null,
+          minLengthMode: config.minLengthMode || "warning",
+          minLengthWarningBg: config.minLengthWarningBg || "#ffebee",
+          maxLength: config.maxLength || null,
+          maxLengthMode: config.maxLengthMode || "warning",
+          maxLengthWarningBg: config.maxLengthWarningBg || "#fff3cd",
+          multiline: config.multiline || false,
+          autoShrinkFont: config.autoShrinkFont !== false,
+          min: config.min || null,
+          max: config.max || null,
+          bgColorInRange: config.bgColorInRange || "#ffffff",
+          bgColorBelowMin: config.bgColorBelowMin || "#e3f2fd",
+          bgColorAboveMax: config.bgColorAboveMax || "#ffebee",
+          borderColorInRange: config.borderColorInRange || "#cccccc",
+          borderColorBelowMin: config.borderColorBelowMin || "#2196f3",
+          borderColorAboveMax: config.borderColorAboveMax || "#f44336",
+          formula: config.formula || "",
+          position: config.position || "",
+          instanceId: config.instanceId || key,
+          sheetIndex: config.sheetIndex || 0,
+        };
+      });
+
+      // === FIXED: Get CSS from the injected style tag, NOT from sheet.html ===
+      let allCSS = "";
+
+      // Method 1: Get CSS from the injected style tag
+      const excelCSS = document.getElementById("excel-css");
+      if (excelCSS) {
+        allCSS = excelCSS.innerHTML;
+        console.log(
+          "Got CSS from #excel-css style tag:",
+          allCSS.length,
+          "chars"
+        );
+      } else {
+        console.warn(
+          "#excel-css style tag not found, trying alternative methods"
+        );
+
+        // Method 2: Check if we have stylesheet.css in the original sheets
+        sheets.forEach((sheet) => {
+          if (sheet.html) {
+            // Look for style tags in the original HTML (before injection)
+            const tempDiv = document.createElement("div");
+            tempDiv.innerHTML = sheet.html;
+            tempDiv.querySelectorAll("style").forEach((styleTag) => {
+              allCSS += styleTag.innerHTML + "\n\n";
+            });
+            tempDiv.remove();
+          }
+        });
+      }
+
+      console.log("Collected CSS length:", allCSS.length);
+
+      // If still no CSS, add minimal default Excel-like styles
+      if (!allCSS.trim()) {
+        allCSS = `
+        /* Default Excel-like styles */
+        table {
+          border-collapse: collapse;
+          border-spacing: 0;
+        }
+        td, th {
+          border: 1px solid #d4d4d4;
+          padding: 2px 4px;
+          font-family: Arial, sans-serif;
+        }
+        .xl65 {
+          color: #000000;
+          font-size: 11pt;
+        }
+      `;
+        console.warn("No CSS found, using default styles");
+      }
+
       const filledValues = Object.fromEntries(
         Object.entries(formData)
           .filter(([_, v]) => v.value != null && v.value !== "")
@@ -874,10 +977,16 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
           html_content: sheets
             .map((s) => s.html)
             .join("<div style='page-break-before:always'></div>"),
-          field_configurations: allConfigs,
+          css_content: allCSS.trim(), // Send trimmed CSS
+          field_configurations: cleanedConfigs,
           field_positions: allPositions,
           form_values: filledValues,
-          sheets: sheets.map((s) => ({ name: s.name, html: s.html })),
+          sheets: sheets.map((s) => ({
+            id: s.id,
+            name: s.name,
+            html: s.html,
+            index: s.index,
+          })),
           last_updated: new Date().toISOString(),
         }
       );
@@ -888,6 +997,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       }
     } catch (err) {
       alert("Publish failed: " + (err.response?.data?.message || err.message));
+      console.error("Publish error:", err);
     }
   };
 

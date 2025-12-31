@@ -1,17 +1,26 @@
+// checksheet.js - Updated API with proper field configuration saving
 const express = require("express");
 const router = express.Router();
 const pool = require("../../db");
 
 // ==============================
-// PUBLISH FORM TEMPLATE
+// PUBLISH FORM TEMPLATE (UPDATED)
 // ==============================
 router.post("/templates", async (req, res) => {
-  const { name, html_content } = req.body;
+  const {
+    name,
+    html_content,
+    field_configurations, // This now contains ALL field settings
+    field_positions,
+    sheets,
+    form_values,
+    css_content = "", // Default to empty string
+  } = req.body;
 
-  if (!name || !html_content) {
+  if (!name) {
     return res.status(400).json({
       success: false,
-      message: "Form name and HTML content are required",
+      message: "Form name is required",
     });
   }
 
@@ -22,54 +31,131 @@ router.post("/templates", async (req, res) => {
     // 1. Insert template
     const templateRes = await client.query(
       `
-      INSERT INTO checksheet_templates (name, html_content)
-      VALUES ($1, $2)
+      INSERT INTO checksheet_templates 
+      (name, html_content, field_configurations, field_positions, sheets, css_content)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id
       `,
-      [name, html_content]
+      [
+        name,
+        html_content || "",
+        field_configurations ? JSON.stringify(field_configurations) : null,
+        field_positions ? JSON.stringify(field_positions) : null,
+        sheets ? JSON.stringify(sheets) : null,
+        css_content || "", // Ensure this is saved
+      ]
     );
 
     const templateId = templateRes.rows[0].id;
 
-    // 2. Extract fields from placeholders
-    const regex = /\{\{(\w+):([^:]+)(?::(\d+))?(?::([^}]+))?\}\}/g;
-    const matches = [...html_content.matchAll(regex)];
-
+    // 2. Create fields array from field_configurations
     const fields = [];
-    const uniqueLabels = new Set();
 
-    for (const match of matches) {
-      const [, typeRaw, labelRaw, decimalsRaw, optionsRaw] = match;
-      const type = typeRaw.toLowerCase();
-      const label = labelRaw.trim();
+    if (field_configurations && Object.keys(field_configurations).length > 0) {
+      Object.values(field_configurations).forEach((config) => {
+        // Clean the label - remove HTML tags
+        let cleanLabel = config.label || "";
+        cleanLabel = cleanLabel.replace(/<\/?[^>]+(>|$)/g, "").trim();
+        cleanLabel = cleanLabel.replace(/&[a-z]+;/g, "").trim();
 
-      if (uniqueLabels.has(label)) continue; // avoid duplicates
-      uniqueLabels.add(label);
+        // If label is still too corrupted, use instanceId
+        if (cleanLabel.length < 2) {
+          cleanLabel = config.instanceId || `field_${Date.now()}`;
+        }
 
-      const fieldName = label.replace(/\s+/g, "_").toLowerCase();
-      const decimalPlaces = decimalsRaw ? parseInt(decimalsRaw) : null;
-      const options = optionsRaw
-        ? optionsRaw.split(",").map((o) => o.trim())
-        : null;
+        const fieldName = cleanLabel.replace(/\s+/g, "_").toLowerCase();
 
-      fields.push({
-        field_name: fieldName,
-        field_type: type,
-        label,
-        decimal_places: decimalPlaces,
-        options,
+        fields.push({
+          field_name: fieldName,
+          field_type: config.type || "text",
+          label: cleanLabel,
+          decimal_places: config.decimalPlaces || null,
+          options: config.options || null,
+          // NEW: Save all additional settings
+          bg_color: config.bgColor || "#ffffff",
+          text_color: config.textColor || "#000000",
+          exact_match_text: config.exactMatchText || null,
+          exact_match_bg_color: config.exactMatchBgColor || "#d4edda",
+          min_length: config.minLength || null,
+          min_length_mode: config.minLengthMode || "warning",
+          min_length_warning_bg: config.minLengthWarningBg || "#ffebee",
+          max_length: config.maxLength || null,
+          max_length_mode: config.maxLengthMode || "warning",
+          max_length_warning_bg: config.maxLengthWarningBg || "#fff3cd",
+          multiline: config.multiline || false,
+          auto_shrink_font: config.autoShrinkFont !== false,
+          min_value: config.min || null,
+          max_value: config.max || null,
+          bg_color_in_range: config.bgColorInRange || "#ffffff",
+          bg_color_below_min: config.bgColorBelowMin || "#e3f2fd",
+          bg_color_above_max: config.bgColorAboveMax || "#ffebee",
+          border_color_in_range: config.borderColorInRange || "#cccccc",
+          border_color_below_min: config.borderColorBelowMin || "#2196f3",
+          border_color_above_max: config.borderColorAboveMax || "#f44336",
+          formula: config.formula || null,
+          position: config.position || null,
+          instance_id: config.instanceId || null,
+          sheet_index: config.sheetIndex || 0,
+        });
       });
+    } else {
+      // Fallback: Extract from HTML (legacy support)
+      const regex = /\{\{(\w+):([^:}]+)(?::(\d+))?(?::([^}]+))?\}\}/g;
+      const matches = [...(html_content || "").matchAll(regex)];
+      const uniqueLabels = new Set();
+
+      for (const match of matches) {
+        const [, typeRaw, labelRaw, decimalsRaw, optionsRaw] = match;
+        const type = typeRaw.toLowerCase();
+
+        // Clean the label properly
+        let label = labelRaw.trim();
+        label = label.replace(/<\/?[^>]+(>|$)/g, "").trim();
+        label = label.replace(/&[a-z]+;/g, "").trim();
+
+        if (uniqueLabels.has(label)) continue;
+        uniqueLabels.add(label);
+
+        const fieldName = label.replace(/\s+/g, "_").toLowerCase();
+        const decimalPlaces = decimalsRaw ? parseInt(decimalsRaw) : null;
+        const options = optionsRaw
+          ? optionsRaw.split(",").map((o) => o.trim())
+          : null;
+
+        fields.push({
+          field_name: fieldName,
+          field_type: type,
+          label,
+          decimal_places: decimalPlaces,
+          options,
+          // Default values for other settings
+          bg_color: "#ffffff",
+          text_color: "#000000",
+          min_length_mode: "warning",
+          min_length_warning_bg: "#ffebee",
+          max_length_mode: "warning",
+          max_length_warning_bg: "#fff3cd",
+          multiline: false,
+          auto_shrink_font: true,
+          bg_color_in_range: "#ffffff",
+          bg_color_below_min: "#e3f2fd",
+          bg_color_above_max: "#ffebee",
+          border_color_in_range: "#cccccc",
+          border_color_below_min: "#2196f3",
+          border_color_above_max: "#f44336",
+        });
+      }
     }
 
     // 3. Create dynamic data table
     const tableName = `checksheet_data_${templateId}`;
 
     let createTableSQL = `
-  CREATE TABLE "${tableName}" (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES usermaster(user_id),
-    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-`;
+      CREATE TABLE "${tableName}" (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES usermaster(user_id),
+        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    `;
 
     for (const field of fields) {
       let columnType = "TEXT";
@@ -105,13 +191,26 @@ router.post("/templates", async (req, res) => {
       [tableName, templateId]
     );
 
-    // 5. Save field metadata
+    // 5. Save field metadata with ALL settings
     for (const field of fields) {
       await client.query(
         `
         INSERT INTO template_fields
-        (template_id, field_name, field_type, label, decimal_places, options)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        (
+          template_id, field_name, field_type, label, decimal_places, options,
+          bg_color, text_color, exact_match_text, exact_match_bg_color,
+          min_length, min_length_mode, min_length_warning_bg,
+          max_length, max_length_mode, max_length_warning_bg,
+          multiline, auto_shrink_font,
+          min_value, max_value, bg_color_in_range, bg_color_below_min, 
+          bg_color_above_max, border_color_in_range, border_color_below_min, 
+          border_color_above_max, formula, position, instance_id, sheet_index
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+          $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+          $21, $22, $23, $24, $25, $26, $27, $28, $29, $30
+        )
         `,
         [
           templateId,
@@ -120,6 +219,30 @@ router.post("/templates", async (req, res) => {
           field.label,
           field.decimal_places,
           field.options ? JSON.stringify(field.options) : null,
+          field.bg_color,
+          field.text_color,
+          field.exact_match_text,
+          field.exact_match_bg_color,
+          field.min_length,
+          field.min_length_mode,
+          field.min_length_warning_bg,
+          field.max_length,
+          field.max_length_mode,
+          field.max_length_warning_bg,
+          field.multiline,
+          field.auto_shrink_font,
+          field.min_value,
+          field.max_value,
+          field.bg_color_in_range,
+          field.bg_color_below_min,
+          field.bg_color_above_max,
+          field.border_color_in_range,
+          field.border_color_below_min,
+          field.border_color_above_max,
+          field.formula,
+          field.position,
+          field.instance_id,
+          field.sheet_index,
         ]
       );
     }
@@ -129,7 +252,7 @@ router.post("/templates", async (req, res) => {
     res.json({
       success: true,
       template_id: templateId,
-      message: "Form published successfully",
+      message: "Form published successfully with all field configurations",
     });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -145,37 +268,168 @@ router.post("/templates", async (req, res) => {
 });
 
 // ==============================
-// GET TEMPLATE (for future editing/viewing)
+// GET TEMPLATE BY ID (with all configurations) - FIXED VERSION
 // ==============================
+// Update the GET template endpoint:
+
 router.get("/templates/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
+    // Get template basic info INCLUDING CSS
     const templateRes = await pool.query(
-      "SELECT id, name, html_content FROM checksheet_templates WHERE id = $1",
+      `
+      SELECT 
+        id, name, html_content, field_configurations, 
+        field_positions, sheets, table_name, created_at,
+        css_content  -- NEW: Include CSS
+      FROM checksheet_templates 
+      WHERE id = $1
+      `,
       [id]
     );
 
     if (templateRes.rows.length === 0) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Template not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Template not found",
+      });
     }
 
+    // Get all field configurations
     const fieldsRes = await pool.query(
-      "SELECT field_name, field_type, label, decimal_places, options FROM template_fields WHERE template_id = $1 ORDER BY id",
+      `
+      SELECT 
+        field_name, field_type, label, decimal_places, options,
+        bg_color, text_color, exact_match_text, exact_match_bg_color,
+        min_length, min_length_mode, min_length_warning_bg,
+        max_length, max_length_mode, max_length_warning_bg,
+        multiline, auto_shrink_font,
+        min_value, max_value, bg_color_in_range, bg_color_below_min, 
+        bg_color_above_max, border_color_in_range, border_color_below_min, 
+        border_color_above_max, formula, position, instance_id, sheet_index
+      FROM template_fields 
+      WHERE template_id = $1 
+      ORDER BY id
+      `,
       [id]
     );
+
+    // Parse JSON fields
+    const template = templateRes.rows[0];
+
+    // Parse JSON data if it exists
+    if (template.field_configurations) {
+      try {
+        template.field_configurations =
+          typeof template.field_configurations === "string"
+            ? JSON.parse(template.field_configurations)
+            : template.field_configurations;
+      } catch (e) {
+        template.field_configurations = {};
+      }
+    } else {
+      template.field_configurations = {};
+    }
+
+    if (template.field_positions) {
+      try {
+        template.field_positions =
+          typeof template.field_positions === "string"
+            ? JSON.parse(template.field_positions)
+            : template.field_positions;
+      } catch (e) {
+        template.field_positions = {};
+      }
+    } else {
+      template.field_positions = {};
+    }
+
+    if (template.sheets) {
+      try {
+        template.sheets =
+          typeof template.sheets === "string"
+            ? JSON.parse(template.sheets)
+            : template.sheets;
+      } catch (e) {
+        template.sheets = [];
+      }
+    } else {
+      template.sheets = [];
+    }
+
+    // Process field data
+    const fields = fieldsRes.rows.map((field) => {
+      const processedField = {
+        field_name: field.field_name,
+        field_type: field.field_type,
+        label: field.label,
+        decimal_places: field.decimal_places,
+        options: field.options
+          ? typeof field.options === "string"
+            ? JSON.parse(field.options)
+            : field.options
+          : null,
+        // All field settings
+        bg_color: field.bg_color,
+        text_color: field.text_color,
+        exact_match_text: field.exact_match_text,
+        exact_match_bg_color: field.exact_match_bg_color,
+        min_length: field.min_length,
+        min_length_mode: field.min_length_mode,
+        min_length_warning_bg: field.min_length_warning_bg,
+        max_length: field.max_length,
+        max_length_mode: field.max_length_mode,
+        max_length_warning_bg: field.max_length_warning_bg,
+        multiline: field.multiline,
+        auto_shrink_font: field.auto_shrink_font,
+        min_value: field.min_value,
+        max_value: field.max_value,
+        bg_color_in_range: field.bg_color_in_range,
+        bg_color_below_min: field.bg_color_below_min,
+        bg_color_above_max: field.bg_color_above_max,
+        border_color_in_range: field.border_color_in_range,
+        border_color_below_min: field.border_color_below_min,
+        border_color_above_max: field.border_color_above_max,
+        formula: field.formula,
+        position: field.position,
+        instance_id: field.instance_id,
+        sheet_index: field.sheet_index,
+      };
+
+      return processedField;
+    });
 
     res.json({
       success: true,
       template: {
-        ...templateRes.rows[0],
-        fields: fieldsRes.rows.map((f) => ({
-          ...f,
-          options: f.options ? JSON.parse(f.options) : null,
-        })),
+        ...template,
+        fields: fields,
+        // css_content is already included in template object
       },
+    });
+  } catch (err) {
+    console.error("Get template error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      details: err.message,
+    });
+  }
+});
+
+// ==============================
+// GET ALL TEMPLATES (for listing)
+// ==============================
+router.get("/templates", async (req, res) => {
+  try {
+    const templatesRes = await pool.query(
+      "SELECT id, name, table_name, created_at FROM checksheet_templates ORDER BY created_at DESC"
+    );
+
+    res.json({
+      success: true,
+      templates: templatesRes.rows,
     });
   } catch (err) {
     console.error(err);
@@ -184,7 +438,7 @@ router.get("/templates/:id", async (req, res) => {
 });
 
 // ==============================
-// SUBMIT DATA TO DYNAMIC TABLE
+// SUBMIT DATA TO DYNAMIC TABLE (unchanged)
 // ==============================
 router.post("/submissions", async (req, res) => {
   const { template_id, user_id, data } = req.body;
@@ -255,6 +509,123 @@ router.post("/submissions", async (req, res) => {
     res
       .status(500)
       .json({ success: false, message: "Failed to save submission" });
+  }
+});
+
+// ==============================
+// GET SUBMISSIONS FOR A TEMPLATE
+// ==============================
+router.get("/templates/:id/submissions", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Get template table name
+    const templateRes = await pool.query(
+      "SELECT table_name FROM checksheet_templates WHERE id = $1",
+      [id]
+    );
+
+    if (templateRes.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Template not found" });
+    }
+
+    const tableName = templateRes.rows[0].table_name;
+
+    // Get all submissions from the dynamic table
+    const submissionsRes = await pool.query(
+      `SELECT * FROM "${tableName}" ORDER BY submitted_at DESC`
+    );
+
+    // Get field metadata for better display
+    const fieldsRes = await pool.query(
+      "SELECT field_name, label, field_type FROM template_fields WHERE template_id = $1",
+      [id]
+    );
+
+    const fieldMetadata = {};
+    fieldsRes.rows.forEach((field) => {
+      fieldMetadata[field.field_name] = {
+        label: field.label,
+        type: field.field_type,
+      };
+    });
+
+    res.json({
+      success: true,
+      submissions: submissionsRes.rows,
+      field_metadata: fieldMetadata,
+    });
+  } catch (err) {
+    console.error("Get submissions error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get submissions",
+      details: err.message,
+    });
+  }
+});
+
+// ==============================
+// DELETE TEMPLATE
+// ==============================
+router.delete("/templates/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // 1. Get template info
+    const templateRes = await client.query(
+      "SELECT table_name FROM checksheet_templates WHERE id = $1",
+      [id]
+    );
+
+    if (templateRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        success: false,
+        message: "Template not found",
+      });
+    }
+
+    const tableName = templateRes.rows[0].table_name;
+
+    // 2. Delete dynamic table if exists
+    if (tableName) {
+      try {
+        await client.query(`DROP TABLE IF EXISTS "${tableName}" CASCADE`);
+      } catch (dropError) {
+        console.warn(`Could not drop table ${tableName}:`, dropError.message);
+      }
+    }
+
+    // 3. Delete field configurations
+    await client.query("DELETE FROM template_fields WHERE template_id = $1", [
+      id,
+    ]);
+
+    // 4. Delete template
+    await client.query("DELETE FROM checksheet_templates WHERE id = $1", [id]);
+
+    await client.query("COMMIT");
+
+    res.json({
+      success: true,
+      message: "Template deleted successfully",
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Delete template error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete template",
+      details: err.message,
+    });
+  } finally {
+    client.release();
   }
 });
 
