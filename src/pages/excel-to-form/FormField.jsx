@@ -27,6 +27,17 @@ const FormField = ({
   borderColorInRange = "#cccccc",
   borderColorBelowMin = "#2196f3",
   borderColorAboveMax = "#f44336",
+  // ADD THESE NEW PROPS:
+  bgColor = "#ffffff",
+  textColor = "#000000",
+  exactMatchText = "",
+  exactMatchBgColor = "#d4edda",
+  minLength = null,
+  minLengthMode = "warning",
+  minLengthWarningBg = "#ffebee",
+  maxLength = null,
+  maxLengthMode = "warning",
+  maxLengthWarningBg = "#fff3cd",
 }) => {
   const [height, setHeight] = useState(38);
   const minHeight = 28;
@@ -37,6 +48,9 @@ const FormField = ({
   const FieldComponent = fieldInfo.component;
 
   // Generate tooltip content based on field type and properties
+  // FormField.js - Update getTooltipContent function
+  // FormField.js - Update getTooltipContent
+  // FormField.js - Update getTooltipContent to include character count
   const getTooltipContent = () => {
     const tips = [];
 
@@ -53,6 +67,90 @@ const FormField = ({
       if (min !== null) range.push(`Min: ${min}`);
       if (max !== null) range.push(`Max: ${max}`);
       tips.push(`<strong>Validation:</strong> ${range.join(", ")}`);
+    }
+
+    // Text field specific info
+    if (type === "text") {
+      const currentValue = value || "";
+      const currentLength = currentValue.length;
+
+      // Character count information
+      if (minLength !== null || maxLength !== null) {
+        tips.push("<hr style='margin: 8px 0; border-color: #ddd;'>");
+        tips.push("<strong>Character Count:</strong>");
+        tips.push(`Current: ${currentLength} characters`);
+
+        if (minLength !== null) {
+          tips.push(
+            `Minimum: ${minLength} characters (${
+              minLengthMode === "strict" ? "Strict" : "Warning"
+            } mode)`
+          );
+        }
+
+        if (maxLength !== null) {
+          tips.push(
+            `Maximum: ${maxLength} characters (${
+              maxLengthMode === "strict" ? "Strict" : "Warning"
+            } mode)`
+          );
+        }
+
+        // Status indicator
+        let status = "";
+        let statusColor = "#28a745"; // Green
+
+        if (maxLength !== null && currentLength > maxLength) {
+          status =
+            maxLengthMode === "strict"
+              ? "❌ BLOCKED - Exceeds maximum"
+              : "⚠️ WARNING - Exceeds maximum";
+          statusColor = maxLengthMode === "strict" ? "#dc3545" : "#fd7e14";
+        } else if (minLength !== null && currentLength < minLength) {
+          status =
+            minLengthMode === "strict"
+              ? "❌ REQUIRED - Below minimum"
+              : "⚠️ WARNING - Below minimum";
+          statusColor = minLengthMode === "strict" ? "#dc3545" : "#fd7e14";
+        } else if (maxLength !== null && currentLength >= maxLength * 0.9) {
+          status = "⚠️ APPROACHING LIMIT";
+          statusColor = "#ffc107";
+        } else if (maxLength !== null && currentLength >= maxLength * 0.75) {
+          status = "ℹ️ NEARING LIMIT";
+          statusColor = "#17a2b8";
+        } else if (minLength !== null && currentLength >= minLength) {
+          status = "✓ MINIMUM MET";
+          statusColor = "#28a745";
+        } else {
+          status = "✓ VALID";
+          statusColor = "#28a745";
+        }
+
+        tips.push(`<strong style="color: ${statusColor};">${status}</strong>`);
+      }
+
+      // Exact match
+      if (exactMatchText) {
+        tips.push("<hr style='margin: 8px 0; border-color: #ddd;'>");
+        tips.push(`<strong>Exact Match:</strong> "${exactMatchText}"`);
+        if (currentValue.trim() === exactMatchText.trim()) {
+          tips.push(`✅ Match found → Background: ${exactMatchBgColor}`);
+        } else {
+          tips.push(`❌ No match → Default background`);
+        }
+      }
+
+      // Appearance
+      if (textColor !== "#000000" || bgColor !== "#ffffff") {
+        tips.push("<hr style='margin: 8px 0; border-color: #ddd;'>");
+        tips.push("<strong>Appearance:</strong>");
+        if (textColor !== "#000000") {
+          tips.push(`Text Color: ${textColor}`);
+        }
+        if (bgColor !== "#ffffff") {
+          tips.push(`Background: ${bgColor}`);
+        }
+      }
     }
 
     if (options && options.length > 0) {
@@ -108,6 +206,17 @@ const FormField = ({
             borderColorInRange={borderColorInRange}
             borderColorBelowMin={borderColorBelowMin}
             borderColorAboveMax={borderColorAboveMax}
+            // PASS THE NEW PROPS:
+            bgColor={bgColor}
+            textColor={textColor}
+            exactMatchText={exactMatchText}
+            exactMatchBgColor={exactMatchBgColor}
+            minLength={minLength}
+            minLengthMode={minLengthMode}
+            minLengthWarningBg={minLengthWarningBg}
+            maxLength={maxLength}
+            maxLengthMode={maxLengthMode}
+            maxLengthWarningBg={maxLengthWarningBg}
           />
           {fieldInfo.supportsHeight && (
             <div className="resize-handle">
@@ -150,6 +259,17 @@ const FormField = ({
               borderColorInRange,
               borderColorBelowMin,
               borderColorAboveMax,
+              // PASS THE NEW PROPS TO THE EDITOR:
+              bgColor,
+              textColor,
+              exactMatchText,
+              exactMatchBgColor,
+              minLength,
+              minLengthMode,
+              minLengthWarningBg,
+              maxLength,
+              maxLengthMode,
+              maxLengthWarningBg,
             })
           }
           title="Edit field configuration"

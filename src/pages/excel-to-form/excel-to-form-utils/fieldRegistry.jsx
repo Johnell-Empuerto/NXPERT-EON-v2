@@ -9,6 +9,7 @@ import DropdownField from "../excel-to-form-components/DropdownField";
 import CalculationField from "../excel-to-form-components/CalculationField"; // NEW
 
 export const fieldRegistry = {
+  // fieldRegistry.js - Update the 'text' entry
   text: {
     label: "Text",
     component: TextField,
@@ -27,9 +28,82 @@ export const fieldRegistry = {
         label: "Auto-shrink font to fit text",
         defaultValue: true,
       },
+      // General appearance
+      {
+        name: "bgColor",
+        type: "color",
+        label: "Background Color",
+        defaultValue: "#ffffff",
+      },
+      {
+        name: "textColor",
+        type: "color",
+        label: "Text Color",
+        defaultValue: "#000000",
+      },
+      // Exact match conditional styling
+      {
+        name: "exactMatchText",
+        type: "text",
+        label: "If input exactly matches this text → change background",
+        placeholder: 'e.g. "Approved", "Rejected", "Yes"',
+      },
+      {
+        name: "exactMatchBgColor",
+        type: "color",
+        label: "Background when exact match",
+        defaultValue: "#d4edda",
+      },
+      // Minimum length validation
+      {
+        name: "minLength",
+        type: "number",
+        label: "Minimum Characters",
+        min: 0,
+        placeholder: "Leave empty for no minimum",
+      },
+      {
+        name: "minLengthMode",
+        type: "select",
+        label: "Min Length Behavior",
+        options: [
+          { value: "warning", label: "Warning (allow typing, show red bg)" },
+          { value: "strict", label: "Strict (block typing beyond limit)" },
+        ],
+        defaultValue: "warning",
+      },
+      {
+        name: "minLengthWarningBg",
+        type: "color",
+        label: "Background when below minimum",
+        defaultValue: "#ffebee",
+      },
+      // NEW: Maximum length validation
+      {
+        name: "maxLength",
+        type: "number",
+        label: "Maximum Characters",
+        min: 0,
+        placeholder: "Leave empty for no maximum",
+      },
+      {
+        name: "maxLengthMode",
+        type: "select",
+        label: "Max Length Behavior",
+        options: [
+          { value: "warning", label: "Warning (allow typing, show orange bg)" },
+          { value: "strict", label: "Strict (block typing beyond limit)" },
+        ],
+        defaultValue: "warning",
+      },
+      {
+        name: "maxLengthWarningBg",
+        type: "color",
+        label: "Background when above maximum",
+        defaultValue: "#fff3cd",
+      },
     ],
   },
-  // fieldRegistry.js (updated number field section)
   number: {
     label: "Number",
     component: NumberField,

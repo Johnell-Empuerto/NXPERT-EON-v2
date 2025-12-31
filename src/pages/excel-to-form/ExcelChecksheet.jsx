@@ -337,6 +337,16 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         position,
         isDuplicate: false,
         sheetIndex,
+        bgColor: "#ffffff",
+        textColor: "#000000",
+        exactMatchText: "",
+        exactMatchBgColor: "#d4edda",
+        minLength: null,
+        minLengthMode: "warning",
+        minLengthWarningBg: "#ffebee",
+        maxLength: null,
+        maxLengthMode: "warning",
+        maxLengthWarningBg: "#fff3cd",
       };
 
       instances.push({
@@ -705,6 +715,16 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         borderColorInRange: updatedField.borderColorInRange,
         borderColorBelowMin: updatedField.borderColorBelowMin,
         borderColorAboveMax: updatedField.borderColorAboveMax,
+        bgColor: updatedField.bgColor || "#ffffff",
+        textColor: updatedField.textColor || "#000000",
+        exactMatchText: updatedField.exactMatchText || "",
+        exactMatchBgColor: updatedField.exactMatchBgColor || "#d4edda",
+        minLength: updatedField.minLength || null,
+        minLengthMode: updatedField.minLengthMode || "warning",
+        minLengthWarningBg: updatedField.minLengthWarningBg || "#ffebee",
+        maxLength: updatedField.maxLength || null,
+        maxLengthMode: updatedField.maxLengthMode || "warning",
+        maxLengthWarningBg: updatedField.maxLengthWarningBg || "#fff3cd",
       },
     }));
   };
@@ -781,6 +801,16 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
             borderColorInRange={config.borderColorInRange}
             borderColorBelowMin={config.borderColorBelowMin}
             borderColorAboveMax={config.borderColorAboveMax}
+            bgColor={config.bgColor}
+            textColor={config.textColor}
+            exactMatchText={config.exactMatchText}
+            exactMatchBgColor={config.exactMatchBgColor}
+            minLength={config.minLength}
+            minLengthMode={config.minLengthMode}
+            minLengthWarningBg={config.minLengthWarningBg}
+            maxLength={config.maxLength}
+            maxLengthMode={config.maxLengthMode}
+            maxLengthWarningBg={config.maxLengthWarningBg}
             onEditField={() =>
               setEditingField({
                 ...config,

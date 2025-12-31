@@ -24,6 +24,7 @@ const FieldEditorModal = ({
   const [showRangeSelector, setShowRangeSelector] = useState(false);
   const [selectedFunction, setSelectedFunction] = useState("SUM"); // Default function
 
+  // In FieldEditorModal.js - Update the useEffect
   useEffect(() => {
     if (field) {
       console.log("Editing field:", field);
@@ -67,9 +68,25 @@ const FieldEditorModal = ({
         ) {
           initialData[fieldName] = field[fieldName];
         }
-        // Handle text/number defaults if needed
+        // Handle text fields
+        else if (
+          fieldConfig.type === "text" &&
+          field[fieldName] !== undefined
+        ) {
+          initialData[fieldName] = field[fieldName];
+        }
+        // Handle select fields
+        else if (
+          fieldConfig.type === "select" &&
+          field[fieldName] !== undefined
+        ) {
+          initialData[fieldName] = field[fieldName];
+        }
+        // For any other fields, use the field value or default
         else if (field[fieldName] !== undefined) {
           initialData[fieldName] = field[fieldName];
+        } else if (fieldConfig.defaultValue !== undefined) {
+          initialData[fieldName] = fieldConfig.defaultValue;
         }
       });
 
@@ -166,6 +183,7 @@ const FieldEditorModal = ({
   };
 
   // Updated handleSave function with validation
+  // In FieldEditorModal.js - Update handleSave function
   const handleSave = () => {
     // Validate min/max before saving
     const minValue =
@@ -182,9 +200,17 @@ const FieldEditorModal = ({
       ...field,
       type,
       label,
-      // Save checkbox values properly
       multiline: !!formData.multiline,
-      autoShrinkFont: formData.autoShrinkFont !== false, // default true
+      autoShrinkFont: formData.autoShrinkFont !== false,
+      // NEW TEXT FIELD SETTINGS
+      bgColor: formData.bgColor || "#ffffff",
+      textColor: formData.textColor || "#000000",
+      exactMatchText: formData.exactMatchText || "",
+      exactMatchBgColor: formData.exactMatchBgColor || "#d4edda",
+      minLength: formData.minLength ? parseInt(formData.minLength, 10) : null,
+      minLengthMode: formData.minLengthMode || "warning",
+      minLengthWarningBg: formData.minLengthWarningBg || "#ffebee",
+      // existing ones...
       options: formData.options
         ? formData.options
             .split(",")
@@ -195,28 +221,23 @@ const FieldEditorModal = ({
         type === "number" || type === "calculation"
           ? parseInt(formData.decimalPlaces, 10) || 0
           : undefined,
-      // Save formula for calculation fields
       formula: type === "calculation" ? formData.formula || "" : undefined,
-
-      // NEW: Save min/max validation settings
       min: formData.min !== undefined ? parseFloat(formData.min) : null,
       max: formData.max !== undefined ? parseFloat(formData.max) : null,
-
-      // NEW: Save background color settings
       bgColorInRange: formData.bgColorInRange || "#ffffff",
       bgColorBelowMin: formData.bgColorBelowMin || "#e3f2fd",
       bgColorAboveMax: formData.bgColorAboveMax || "#ffebee",
-
-      // NEW: Save border color settings
       borderColorInRange: formData.borderColorInRange || "#cccccc",
       borderColorBelowMin: formData.borderColorBelowMin || "#2196f3",
       borderColorAboveMax: formData.borderColorAboveMax || "#f44336",
+      maxLength: formData.maxLength ? parseInt(formData.maxLength, 10) : null,
+      maxLengthMode: formData.maxLengthMode || "warning",
+      maxLengthWarningBg: formData.maxLengthWarningBg || "#fff3cd",
     };
 
     onSave(updatedField);
     onClose();
   };
-
   // Updated renderEditorField function with real-time validation
   const renderEditorField = (fieldConfig) => {
     const key = fieldConfig.name;
