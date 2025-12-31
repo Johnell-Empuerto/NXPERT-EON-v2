@@ -425,8 +425,6 @@ const FieldEditorModal = ({
               backgroundColor: "#f8f9fa",
               borderRadius: "6px",
               border: "1px solid #e9ecef",
-              maxHeight: "200px",
-              overflowY: "auto",
             }}
           >
             <div

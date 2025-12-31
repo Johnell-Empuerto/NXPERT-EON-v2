@@ -4,6 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import parse from "html-react-parser";
 import axios from "axios";
 import "./FormFiller.css";
+import Tooltip from "../excel-to-form/tools/Tooltip";
 
 const FormFiller = () => {
   const { templateId } = useParams();
@@ -15,6 +16,8 @@ const FormFiller = () => {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [currentSheetIndex, setCurrentSheetIndex] = useState(0);
+  const [images, setImages] = useState({}); // Add images state
+  const [processedHtml, setProcessedHtml] = useState(""); // Add processed HTML state
 
   // Pan & Zoom state
   const translate = useRef({ x: 0, y: 0 });
@@ -56,6 +59,34 @@ const FormFiller = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const handleDocumentClick = (e) => {
+      // Close all tooltips when clicking outside
+      const tooltips = document.querySelectorAll(".input-tooltip.visible");
+      if (tooltips.length > 0) {
+        const isClickInsideTooltip = Array.from(tooltips).some((tooltip) =>
+          tooltip.contains(e.target)
+        );
+        const isClickOnInput =
+          e.target.tagName === "INPUT" ||
+          e.target.tagName === "SELECT" ||
+          e.target.tagName === "TEXTAREA" ||
+          e.target.tagName === "BUTTON";
+
+        if (!isClickInsideTooltip && !isClickOnInput) {
+          tooltips.forEach((tooltip) => {
+            tooltip.classList.remove("visible");
+          });
+        }
+      }
+    };
+
+    document.addEventListener("click", handleDocumentClick);
+    return () => {
+      document.removeEventListener("click", handleDocumentClick);
+    };
+  }, []);
+
   // Check authentication and load template
   useEffect(() => {
     const checkAuthAndLoad = async () => {
@@ -70,10 +101,88 @@ const FormFiller = () => {
     checkAuthAndLoad();
   }, [templateId, navigate]);
 
+  // Function to load template images
+  const loadTemplateImages = async () => {
+    try {
+      // First, check if there are images in the template
+      const imagesResponse = await axios.get(
+        `http://localhost:5000/api/checksheet/templates/${templateId}/images`,
+        { headers: getAuthHeaders() }
+      );
+
+      if (
+        imagesResponse.data.success &&
+        imagesResponse.data.images.length > 0
+      ) {
+        const imageMap = {};
+
+        // Process each image
+        for (const image of imagesResponse.data.images) {
+          // Load the image from the API endpoint
+          const imageUrl = `/api/checksheet/templates/${templateId}/images/${image.id}`;
+
+          // Create a full URL
+          const fullImageUrl = `http://localhost:5000${imageUrl}`;
+
+          imageMap[image.original_path] = {
+            id: image.id,
+            url: fullImageUrl,
+            filename: image.filename,
+            originalPath: image.original_path,
+          };
+        }
+
+        setImages(imageMap);
+        return imageMap;
+      }
+    } catch (err) {
+      console.warn("Failed to load template images:", err);
+      // Don't fail the whole template load if images fail
+    }
+    return {};
+  };
+
+  // Function to process HTML and replace image placeholders
+  const processHtmlWithImages = (html, imageMap) => {
+    if (!html || !imageMap || Object.keys(imageMap).length === 0) {
+      return html;
+    }
+
+    let processedHtml = html;
+
+    // Replace image URLs with actual image endpoints
+    Object.entries(imageMap).forEach(([originalPath, imageData]) => {
+      // Create a regex to match the image placeholder
+      // Handle both blob URLs and placeholder formats
+      const placeholderPatterns = [
+        `src=["'][^"']*${originalPath.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\$&"
+        )}["']`,
+        `src=["']blob:[^"']*${imageData.filename.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\$&"
+        )}["']`,
+        `src=["'][^"']*${imageData.filename.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\$&"
+        )}["']`,
+      ];
+
+      placeholderPatterns.forEach((pattern) => {
+        const regex = new RegExp(pattern, "gi");
+        processedHtml = processedHtml.replace(regex, `src="${imageData.url}"`);
+      });
+    });
+
+    return processedHtml;
+  };
+
   const loadTemplate = async () => {
     setLoading(true);
     setError(null);
     try {
+      // Load template data
       const response = await axios.get(
         `http://localhost:5000/api/checksheet/templates/${templateId}`,
         { headers: getAuthHeaders() }
@@ -98,6 +207,25 @@ const FormFiller = () => {
         } else {
           console.warn("No CSS content found in template");
         }
+
+        // === LOAD AND PROCESS IMAGES ===
+        const imageMap = await loadTemplateImages();
+
+        // Get HTML content
+        let htmlContent = "";
+        if (templateData.sheets && templateData.sheets.length > 0) {
+          htmlContent =
+            templateData.sheets[0]?.html || templateData.html_content || "";
+        } else {
+          htmlContent = templateData.html_content || "";
+        }
+
+        // Process HTML to replace image placeholders
+        const processedHtmlContent = processHtmlWithImages(
+          htmlContent,
+          imageMap
+        );
+        setProcessedHtml(processedHtmlContent);
 
         // Initialize form data
         const initialData = {};
@@ -171,7 +299,7 @@ const FormFiller = () => {
 
       if (response.data.success) {
         alert("Form submitted successfully!");
-        navigate("/dashboard/forms"); // FIXED: Use absolute path
+        navigate("/dashboard/forms");
       }
     } catch (err) {
       console.error("Submit error:", err);
@@ -266,54 +394,92 @@ const FormFiller = () => {
     };
   }, [template]);
 
-  // Parse HTML with field replacement (keep as is)
+  // Parse HTML with field replacement
   const parseOptions = {
     replace: (node) => {
-      if (node.type !== "text") return;
-      const text = node.data;
-      const regex = /\{\{(\w+):([^:}]+)(?::(\d+))?(?::([^}]+))?\}\}/g;
-      if (!text.match(regex)) return;
+      // Handle form fields
+      if (node.type === "text") {
+        const text = node.data;
+        const regex = /\{\{(\w+):([^:}]+)(?::(\d+))?(?::([^}]+))?\}\}/g;
+        if (!text.match(regex)) return;
 
-      const matches = [...text.matchAll(regex)];
-      if (matches.length === 0) return;
+        const matches = [...text.matchAll(regex)];
+        if (matches.length === 0) return;
 
-      const parts = [];
-      let lastIndex = 0;
+        const parts = [];
+        let lastIndex = 0;
 
-      matches.forEach((match) => {
-        const [fullMatch, rawType, rawLabel] = match;
-        let cleanLabel = rawLabel
-          .trim()
-          .replace(/<\/?[^>]+(>|$)/g, "")
-          .replace(/&[a-z]+;/g, "")
-          .trim();
+        matches.forEach((match) => {
+          const [fullMatch, rawType, rawLabel] = match;
+          let cleanLabel = rawLabel
+            .trim()
+            .replace(/<\/?[^>]+(>|$)/g, "")
+            .replace(/&[a-z]+;/g, "")
+            .trim();
 
-        const fieldConfig = template?.fields?.find(
-          (f) =>
-            f.label === cleanLabel ||
-            f.field_name === cleanLabel.replace(/\s+/g, "_").toLowerCase()
-        );
+          const fieldConfig = template?.fields?.find(
+            (f) =>
+              f.label === cleanLabel ||
+              f.field_name === cleanLabel.replace(/\s+/g, "_").toLowerCase()
+          );
 
-        if (!fieldConfig) return;
+          if (!fieldConfig) return;
 
-        const fieldName = fieldConfig.instance_id || fieldConfig.field_name;
-        const value = formData[fieldName] || "";
+          const fieldName = fieldConfig.instance_id || fieldConfig.field_name;
+          const value = formData[fieldName] || "";
 
-        if (match.index > lastIndex) {
-          parts.push(text.substring(lastIndex, match.index));
+          if (match.index > lastIndex) {
+            parts.push(text.substring(lastIndex, match.index));
+          }
+
+          parts.push(
+            <div key={fieldName} className="form-field-wrapper">
+              {renderField(fieldConfig, fieldName, value)}
+            </div>
+          );
+
+          lastIndex = match.index + fullMatch.length;
+        });
+
+        if (lastIndex < text.length) parts.push(text.substring(lastIndex));
+        return <>{parts}</>;
+      }
+
+      // Handle image tags - replace src with actual image URLs
+      if (node.type === "tag" && node.name === "img") {
+        const src = node.attribs?.src || "";
+
+        // If it's already a proper URL, keep it
+        if (
+          src.startsWith("http") ||
+          src.startsWith("/api/checksheet/templates/")
+        ) {
+          return React.createElement("img", {
+            ...node.attribs,
+            key: `img-${src}`,
+          });
         }
 
-        parts.push(
-          <div key={fieldName} className="form-field-wrapper">
-            {renderField(fieldConfig, fieldName, value)}
-          </div>
-        );
+        // Try to find matching image in our image map
+        for (const [originalPath, imageData] of Object.entries(images)) {
+          if (src.includes(imageData.filename) || src.includes(originalPath)) {
+            return React.createElement("img", {
+              ...node.attribs,
+              key: `img-${imageData.id}`,
+              src: imageData.url,
+              alt: imageData.filename,
+            });
+          }
+        }
 
-        lastIndex = match.index + fullMatch.length;
-      });
+        // Return original if no match found
+        return React.createElement("img", {
+          ...node.attribs,
+          key: `img-${src}`,
+        });
+      }
 
-      if (lastIndex < text.length) parts.push(text.substring(lastIndex));
-      return <>{parts}</>;
+      return undefined;
     },
   };
 
@@ -327,22 +493,23 @@ const FormFiller = () => {
       max_value: max,
       bg_color = "#ffffff",
       text_color = "#000000",
-      exact_match_text,
-      exact_match_bg_color,
-      min_length,
-      min_length_warning_bg = "#ffebee",
-      max_length,
-      max_length_warning_bg = "#fff3cd",
+      exact_match_text: exactMatchText,
+      exact_match_bg_color: exactMatchBgColor = "#d4edda",
+      min_length: minLength,
+      min_length_warning_bg: minLengthWarningBg = "#ffebee",
+      max_length: maxLength,
+      max_length_warning_bg: maxLengthWarningBg = "#fff3cd",
       multiline,
-      bg_color_in_range = "#ffffff",
-      border_color_in_range = "#cccccc",
+      bg_color_in_range: bgColorInRange = "#ffffff",
+      border_color_in_range: borderColorInRange = "#cccccc",
+      position: fieldPosition = "",
     } = fieldConfig;
 
     const getBackgroundColor = (val) => {
-      if (exact_match_text && val.trim() === exact_match_text.trim())
-        return exact_match_bg_color || "#d4edda";
-      if (min_length && val.length < min_length) return min_length_warning_bg;
-      if (max_length && val.length > max_length) return max_length_warning_bg;
+      if (exactMatchText && val.trim() === exactMatchText.trim())
+        return exactMatchBgColor || "#d4edda";
+      if (minLength && val.length < minLength) return minLengthWarningBg;
+      if (maxLength && val.length > maxLength) return maxLengthWarningBg;
 
       if (type === "number" && val) {
         const num = parseFloat(val);
@@ -361,22 +528,105 @@ const FormFiller = () => {
       style: {
         backgroundColor: getBackgroundColor(value),
         color: text_color,
-        border: `1px solid ${border_color_in_range}`,
+        border: `1px solid ${borderColorInRange}`,
         width: "100%",
         padding: "8px 10px",
         boxSizing: "border-box",
       },
     };
 
+    // Create enhanced tooltip content based on field configuration
+    const createTooltipContent = () => {
+      const parts = [];
+
+      // Add field reference
+      if (fieldPosition) {
+        parts.push(`<strong>Reference:</strong> ${fieldPosition}`);
+      }
+
+      // Add field type
+      parts.push(`<strong>Type:</strong> ${type}`);
+
+      // Add validation info
+      if (min !== null || max !== null) {
+        const range = [];
+        if (min !== null) range.push(`Min: ${min}`);
+        if (max !== null) range.push(`Max: ${max}`);
+        parts.push(`<strong>Validation:</strong> ${range.join(", ")}`);
+      }
+
+      // Add length validation
+      if (minLength !== null) {
+        parts.push(`<strong>Min Length:</strong> ${minLength} characters`);
+      }
+
+      if (maxLength !== null) {
+        parts.push(`<strong>Max Length:</strong> ${maxLength} characters`);
+      }
+
+      // Add exact match
+      if (exactMatchText) {
+        parts.push(`<strong>Exact Match:</strong> "${exactMatchText}"`);
+      }
+
+      // Add decimal places
+      if (decimalPlaces !== null && type === "number") {
+        parts.push(`<strong>Decimal Places:</strong> ${decimalPlaces}`);
+      }
+
+      // Add options for dropdown
+      if (options && type === "dropdown") {
+        let optionList = [];
+        try {
+          optionList =
+            typeof options === "string" ? JSON.parse(options) : options;
+        } catch (e) {
+          optionList = Array.isArray(options) ? options : [];
+        }
+        if (optionList.length > 0) {
+          parts.push(`<strong>Options:</strong> ${optionList.join(", ")}`);
+        }
+      }
+
+      // Current value info
+      const currentValue = value || "";
+      if (type === "text" || type === "textarea") {
+        parts.push(`<hr style='margin: 8px 0; border-color: #ddd;'>`);
+        parts.push(`<strong>Character Count:</strong> ${currentValue.length}`);
+      }
+
+      return parts.length > 0
+        ? parts.join("<br>")
+        : "No additional information";
+    };
+
+    const tooltipContent = createTooltipContent();
+
+    // Wrap the field with Tooltip
+    const renderFieldWithTooltip = (fieldElement) => {
+      return (
+        <Tooltip
+          content={tooltipContent}
+          position="top"
+          showOnFocus={true}
+          showOnHover={true}
+        >
+          {fieldElement}
+        </Tooltip>
+      );
+    };
+
     switch (type) {
       case "text":
-        return multiline ? (
+        const textField = multiline ? (
           <textarea {...commonProps} rows={3} />
         ) : (
           <input type="text" {...commonProps} />
         );
+        return renderFieldWithTooltip(textField);
+
       case "number":
-        return (
+        const numberField = (
           <input
             type="number"
             {...commonProps}
@@ -387,23 +637,38 @@ const FormFiller = () => {
             max={max}
           />
         );
+        return renderFieldWithTooltip(numberField);
+
       case "date":
-        return <input type="date" {...commonProps} />;
+        const dateField = <input type="date" {...commonProps} />;
+        return renderFieldWithTooltip(dateField);
+
       case "checkbox":
-        return (
-          <input
-            type="checkbox"
-            checked={!!value}
-            onChange={(e) => handleFieldChange(fieldName, e.target.checked)}
-          />
+        const checkboxField = (
+          <div style={{ display: "inline-block" }}>
+            <input
+              type="checkbox"
+              checked={!!value}
+              onChange={(e) => handleFieldChange(fieldName, e.target.checked)}
+              style={{ margin: 0, width: "auto" }}
+            />
+          </div>
         );
+        return renderFieldWithTooltip(checkboxField);
+
       case "dropdown":
         const optionList = options
-          ? Array.isArray(options)
-            ? options
-            : JSON.parse(options)
+          ? (() => {
+              try {
+                return typeof options === "string"
+                  ? JSON.parse(options)
+                  : options;
+              } catch (e) {
+                return Array.isArray(options) ? options : [];
+              }
+            })()
           : [];
-        return (
+        const selectField = (
           <select {...commonProps}>
             <option value="">Select {label}</option>
             {optionList.map((opt, i) => (
@@ -413,24 +678,33 @@ const FormFiller = () => {
             ))}
           </select>
         );
+        return renderFieldWithTooltip(selectField);
+
       default:
-        return <input type="text" {...commonProps} />;
+        const defaultField = <input type="text" {...commonProps} />;
+        return renderFieldWithTooltip(defaultField);
     }
   };
 
   const parsedContent = useMemo(() => {
     if (!template) return null;
-    let htmlContent = "";
-    if (template.sheets && template.sheets.length > 0) {
-      htmlContent =
-        template.sheets[currentSheetIndex]?.html ||
-        template.sheets[0]?.html ||
-        "";
-    } else {
-      htmlContent = template.html_content || "";
+
+    let htmlContent = processedHtml;
+    if (!htmlContent) {
+      // Fallback to template HTML if processed HTML is not available
+      if (template.sheets && template.sheets.length > 0) {
+        htmlContent =
+          template.sheets[currentSheetIndex]?.html ||
+          template.sheets[0]?.html ||
+          template.html_content ||
+          "";
+      } else {
+        htmlContent = template.html_content || "";
+      }
     }
+
     return parse(htmlContent, parseOptions);
-  }, [template, formData, currentSheetIndex]);
+  }, [template, formData, currentSheetIndex, processedHtml, images]);
 
   if (loading)
     return (
@@ -446,7 +720,7 @@ const FormFiller = () => {
         <h2>Error</h2>
         <p>{error}</p>
         <button
-          onClick={() => navigate("/dashboard/forms")} // FIXED: Use absolute path
+          onClick={() => navigate("/dashboard/forms")}
           className="back-btn"
         >
           Back to Forms
@@ -459,7 +733,7 @@ const FormFiller = () => {
       <div className="error-container">
         <h2>Form Not Found</h2>
         <button
-          onClick={() => navigate("/dashboard/forms")} // FIXED: Use absolute path
+          onClick={() => navigate("/dashboard/forms")}
           className="back-btn"
         >
           Back to Forms
@@ -476,7 +750,7 @@ const FormFiller = () => {
         </div>
         <div className="header-actions">
           <button
-            onClick={() => navigate("/dashboard/forms")} // FIXED: Use absolute path
+            onClick={() => navigate("/dashboard/forms")}
             className="back-btn"
           >
             ← Back to Forms
@@ -523,6 +797,11 @@ const FormFiller = () => {
           <span className="info-item">
             <strong>Sheets:</strong> {template.sheets?.length || 1}
           </span>
+          {images && Object.keys(images).length > 0 && (
+            <span className="info-item">
+              <strong>Images:</strong> {Object.keys(images).length}
+            </span>
+          )}
         </div>
         <div className="summary-actions">
           <button
