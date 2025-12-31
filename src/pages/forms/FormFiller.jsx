@@ -556,16 +556,6 @@ const FormFiller = () => {
           </button>
         </div>
       </div>
-
-      <div className="instructions">
-        <h3>Instructions:</h3>
-        <ul>
-          <li>Click and drag to pan around the form</li>
-          <li>Use mouse wheel to zoom in/out</li>
-          <li>Fill in all required fields before submitting</li>
-          <li>Fields with validation rules will change color</li>
-        </ul>
-      </div>
     </div>
   );
 };

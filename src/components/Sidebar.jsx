@@ -273,6 +273,18 @@ const AppSidebar = ({ onLinkClick }) => {
           Create Checksheet Templates
         </MenuItem>
 
+        <MenuItem
+          icon={
+            <SidebarTooltip label="Create Checksheet Templates">
+              <FontAwesomeIcon icon={faClipboardList} />
+            </SidebarTooltip>
+          }
+          component={<Link to="/dashboard/forms" onClick={handleLinkClick} />}
+          active={location.pathname === "/dashboard/forms"}
+        >
+          Form Checksheet
+        </MenuItem>
+
         {/* Masters */}
         <MenuItem
           style={{

@@ -46,6 +46,8 @@
   font-size: 14px;
   font-weight: 500;
   transition: all 0.2s ease;
+  width: 180px;
+  margin-top: unset;
 }
 
 .back-btn {
