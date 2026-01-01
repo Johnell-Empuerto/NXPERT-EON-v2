@@ -1,10 +1,9 @@
-// checksheet.js - Updated API with proper field configuration saving
 const express = require("express");
 const router = express.Router();
 const pool = require("../../db");
 
 // ==============================
-// PUBLISH FORM TEMPLATE (UPDATED)
+// PUBLISH FORM TEMPLATE WITH PROPER IMAGE POSITIONS
 // ==============================
 router.post("/templates", async (req, res) => {
   const {
@@ -30,6 +29,11 @@ router.post("/templates", async (req, res) => {
   try {
     await client.query("BEGIN");
 
+    console.log("=== PUBLISHING FORM ===");
+    console.log("Form name:", name);
+    console.log("Images count:", Object.keys(images).length);
+    console.log("Sheets count:", sheets?.length || 1);
+
     // 1. Insert template
     const templateRes = await client.query(
       `
@@ -50,17 +54,120 @@ router.post("/templates", async (req, res) => {
     );
 
     const templateId = templateRes.rows[0].id;
+    console.log("Template created with ID:", templateId);
 
-    // 2. Save images to template_images table
+    // 2. ANALYZE IMAGE POSITIONS IN HTML
+    const imagePositions = [];
+
+    if (html_content) {
+      // Find all img tags in HTML
+      const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+      let match;
+      let index = 0;
+
+      while ((match = imgRegex.exec(html_content)) !== null) {
+        const fullTag = match[0];
+        const src = match[1];
+
+        // Extract filename from src
+        let filename = "";
+        if (src.includes("IMAGE_PLACEHOLDER:")) {
+          filename = src.split("IMAGE_PLACEHOLDER:")[1].replace(/["']/g, "");
+        } else {
+          filename = src.split("/").pop().split("?")[0];
+        }
+
+        imagePositions.push({
+          position: index,
+          originalSrc: src,
+          filename: filename,
+          fullTag: fullTag,
+        });
+
+        index++;
+      }
+
+      console.log(
+        `Found ${imagePositions.length} images in HTML at positions:`,
+        imagePositions.map((ip) => `${ip.position}: ${ip.filename}`)
+      );
+    }
+
+    // 3. Save images with position information
     const savedImages = {};
     if (images && Object.keys(images).length > 0) {
-      for (const [originalPath, imageData] of Object.entries(images)) {
+      // Create array to maintain order
+      const imageEntries = Object.entries(images);
+
+      // Sort images by position, then by order
+      imageEntries.sort((a, b) => {
+        const posA = a[1].position !== undefined ? a[1].position : a[1].order;
+        const posB = b[1].position !== undefined ? b[1].position : b[1].order;
+        return posA - posB;
+      });
+
+      console.log(
+        "Sorted images for saving:",
+        imageEntries.map(
+          ([name, data]) =>
+            `${name}: position=${data.position}, order=${data.order}`
+        )
+      );
+
+      // Keep track of used positions to avoid duplicates
+      const usedPositions = new Set();
+
+      for (let i = 0; i < imageEntries.length; i++) {
+        const [originalPath, imageData] = imageEntries[i];
+
         try {
+          // Get position from imageData
+          let positionIndex =
+            imageData.position !== undefined ? imageData.position : i;
+
+          // If position is already used, find next available
+          if (usedPositions.has(positionIndex)) {
+            console.log(
+              `Position ${positionIndex} already used for ${originalPath}, finding next available`
+            );
+            let newPos = positionIndex;
+            while (usedPositions.has(newPos)) {
+              newPos++;
+            }
+            positionIndex = newPos;
+            console.log(
+              `Assigned new position ${positionIndex} to ${originalPath}`
+            );
+          }
+
+          usedPositions.add(positionIndex);
+
+          // Find matching original src
+          let originalSrc = "";
+          if (imageData.originalSrc) {
+            originalSrc = imageData.originalSrc;
+          } else {
+            // Try to find in imagePositions
+            const simpleFilename = originalPath.includes("/")
+              ? originalPath.split("/").pop()
+              : originalPath;
+            const matchingPosition = imagePositions.find(
+              (pos) => pos.filename === simpleFilename
+            );
+            if (matchingPosition) {
+              originalSrc = matchingPosition.originalSrc;
+            }
+          }
+
+          // Generate a unique element ID for this image
+          const elementId = `img_${templateId}_${positionIndex}_${Date.now()}`;
+
           const imageRes = await client.query(
             `
             INSERT INTO template_images 
-            (template_id, original_path, filename, mime_type, image_data, size)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            (template_id, original_path, filename, mime_type, image_data, size, 
+             position_index, original_src, element_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING id
             `,
             [
@@ -70,13 +177,23 @@ router.post("/templates", async (req, res) => {
               imageData.mimeType,
               imageData.base64,
               imageData.size,
+              positionIndex,
+              originalSrc,
+              elementId,
             ]
           );
 
           const imageId = imageRes.rows[0].id;
-          savedImages[originalPath] = imageId;
+          savedImages[originalPath] = {
+            id: imageId,
+            position: positionIndex,
+            elementId: elementId,
+            filename: imageData.filename,
+          };
 
-          console.log(`Saved image: ${imageData.filename} with ID: ${imageId}`);
+          console.log(
+            `Saved image: ${imageData.filename} at position ${positionIndex} with ID: ${imageId}`
+          );
         } catch (imgErr) {
           console.error(`Failed to save image ${originalPath}:`, imgErr);
           // Continue with other images
@@ -84,20 +201,55 @@ router.post("/templates", async (req, res) => {
       }
     }
 
-    // 3. Update HTML to replace placeholders with API endpoints
+    // 4. Update HTML to replace placeholders with API endpoints using correct positions
     let processedHtml = html_content;
     if (Object.keys(savedImages).length > 0) {
-      // Replace IMAGE_PLACEHOLDER:path with /api/checksheet/templates/:id/images/:imageId
-      for (const [originalPath, imageId] of Object.entries(savedImages)) {
-        const placeholderRegex = new RegExp(
-          `src=["']IMAGE_PLACEHOLDER:${originalPath.replace(
-            /[.*+?^${}()|[\]\\]/g,
-            "\\$&"
-          )}["']`,
-          "gi"
-        );
-        const imageUrl = `src="/api/checksheet/templates/${templateId}/images/${imageId}"`;
-        processedHtml = processedHtml.replace(placeholderRegex, imageUrl);
+      // Sort saved images by position
+      const sortedImages = Object.entries(savedImages)
+        .map(([path, data]) => ({ path, ...data }))
+        .sort((a, b) => a.position - b.position);
+
+      console.log(
+        "Sorted images by position for HTML processing:",
+        sortedImages.map(
+          (img) => `${img.position}: ${img.filename} (ID: ${img.id})`
+        )
+      );
+
+      // Replace IMAGE_PLACEHOLDER:path with API endpoints
+      for (const img of sortedImages) {
+        const filename = img.filename || img.path.split("/").pop();
+
+        // Multiple patterns to catch different placeholder formats
+        const patterns = [
+          // Pattern for IMAGE_PLACEHOLDER:filename
+          new RegExp(
+            `src=["']IMAGE_PLACEHOLDER:${filename.replace(
+              /[.*+?^${}()|[\]\\]/g,
+              "\\$&"
+            )}["']`,
+            "gi"
+          ),
+          // Pattern for blob URLs that might still exist
+          new RegExp(
+            `src=["']blob:[^"']*${filename.replace(
+              /[.*+?^${}()|[\]\\]/g,
+              "\\$&"
+            )}[^"']*["']`,
+            "gi"
+          ),
+        ];
+
+        const imageUrl = `src="/api/checksheet/templates/${templateId}/images/${img.id}"`;
+
+        patterns.forEach((pattern) => {
+          if (pattern.test(processedHtml)) {
+            processedHtml = processedHtml.replace(pattern, imageUrl);
+            console.log(
+              `Replaced ${filename} with API URL at position ${img.position}`
+            );
+          }
+        });
       }
     }
 
@@ -107,163 +259,149 @@ router.post("/templates", async (req, res) => {
       [processedHtml, templateId]
     );
 
-    // 4. Create fields array from field_configurations
-    const fields = [];
+    // 5. Save field configurations to separate table
+    if (field_configurations && Object.keys(field_configurations).length > 0) {
+      for (const [fieldId, config] of Object.entries(field_configurations)) {
+        await client.query(
+          `
+          INSERT INTO template_fields 
+          (template_id, field_name, field_type, label, decimal_places, options,
+           bg_color, text_color, exact_match_text, exact_match_bg_color,
+           min_length, min_length_mode, min_length_warning_bg,
+           max_length, max_length_mode, max_length_warning_bg,
+           multiline, auto_shrink_font,
+           min_value, max_value, bg_color_in_range, bg_color_below_min, 
+           bg_color_above_max, border_color_in_range, border_color_below_min, 
+           border_color_above_max, formula, position, instance_id, sheet_index)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
+          `,
+          [
+            templateId,
+            config.field_name || fieldId,
+            config.type || "text",
+            config.label || "",
+            config.decimal_places || null,
+            config.options ? JSON.stringify(config.options) : null,
+            config.bgColor || "#ffffff",
+            config.textColor || "#000000",
+            config.exactMatchText || "",
+            config.exactMatchBgColor || "#d4edda",
+            config.minLength || null,
+            config.minLengthMode || "warning",
+            config.minLengthWarningBg || "#ffebee",
+            config.maxLength || null,
+            config.maxLengthMode || "warning",
+            config.maxLengthWarningBg || "#fff3cd",
+            config.multiline || false,
+            config.autoShrinkFont !== false,
+            config.min || null,
+            config.max || null,
+            config.bgColorInRange || "#ffffff",
+            config.bgColorBelowMin || "#e3f2fd",
+            config.bgColorAboveMax || "#ffebee",
+            config.borderColorInRange || "#cccccc",
+            config.borderColorBelowMin || "#2196f3",
+            config.borderColorAboveMax || "#f44336",
+            config.formula || "",
+            config.position || "",
+            config.instanceId || fieldId,
+            config.sheetIndex || 0,
+          ]
+        );
+      }
+    }
+
+    // 6. Create dynamic table for submissions
+    const tableName = `checksheet_${templateId}_${Date.now()}`.toLowerCase();
+    const tableFields = [];
 
     if (field_configurations && Object.keys(field_configurations).length > 0) {
       Object.values(field_configurations).forEach((config) => {
-        // Clean the label - remove HTML tags
-        let cleanLabel = config.label || "";
-        cleanLabel = cleanLabel.replace(/<\/?[^>]+(>|$)/g, "").trim();
-        cleanLabel = cleanLabel.replace(/&[a-z]+;/g, "").trim();
+        const fieldName = config.field_name || config.instanceId;
+        if (fieldName && fieldName.trim()) {
+          // Sanitize field name for SQL
+          const safeFieldName = fieldName
+            .replace(/[^a-zA-Z0-9_]/g, "_") // Replace non-alphanumeric with underscore
+            .replace(/_{2,}/g, "_") // Replace multiple underscores with single
+            .replace(/^_+|_+$/g, ""); // Remove leading/trailing underscores
 
-        if (cleanLabel.length < 2) {
-          cleanLabel = config.instanceId || `field_${Date.now()}`;
+          if (safeFieldName) {
+            tableFields.push(`${safeFieldName} TEXT`);
+          }
         }
-
-        const fieldName = cleanLabel.replace(/\s+/g, "_").toLowerCase();
-
-        fields.push({
-          field_name: fieldName,
-          field_type: config.type || "text",
-          label: cleanLabel,
-          decimal_places: config.decimalPlaces || null,
-          options: config.options || null,
-          bg_color: config.bgColor || "#ffffff",
-          text_color: config.textColor || "#000000",
-          exact_match_text: config.exactMatchText || null,
-          exact_match_bg_color: config.exactMatchBgColor || "#d4edda",
-          min_length: config.minLength || null,
-          min_length_mode: config.minLengthMode || "warning",
-          min_length_warning_bg: config.minLengthWarningBg || "#ffebee",
-          max_length: config.maxLength || null,
-          max_length_mode: config.maxLengthMode || "warning",
-          max_length_warning_bg: config.maxLengthWarningBg || "#fff3cd",
-          multiline: config.multiline || false,
-          auto_shrink_font: config.autoShrinkFont !== false,
-          min_value: config.min || null,
-          max_value: config.max || null,
-          bg_color_in_range: config.bgColorInRange || "#ffffff",
-          bg_color_below_min: config.bgColorBelowMin || "#e3f2fd",
-          bg_color_above_max: config.bgColorAboveMax || "#ffebee",
-          border_color_in_range: config.borderColorInRange || "#cccccc",
-          border_color_below_min: config.borderColorBelowMin || "#2196f3",
-          border_color_above_max: config.borderColorAboveMax || "#f44336",
-          formula: config.formula || null,
-          position: config.position || null,
-          instance_id: config.instanceId || null,
-          sheet_index: config.sheetIndex || 0,
-        });
       });
     }
 
-    // 5. Create dynamic data table
-    const tableName = `checksheet_data_${templateId}`;
+    let createTableSQL;
 
-    let createTableSQL = `
-      CREATE TABLE "${tableName}" (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES usermaster(user_id),
-        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    `;
-
-    for (const field of fields) {
-      let columnType = "TEXT";
-      switch (field.field_type) {
-        case "number":
-          columnType = field.decimal_places
-            ? `NUMERIC(12, ${field.decimal_places})`
-            : "NUMERIC";
-          break;
-        case "date":
-          columnType = "DATE";
-          break;
-        case "checkbox":
-          columnType = "BOOLEAN";
-          break;
-        case "text":
-        case "dropdown":
-        default:
-          columnType = "TEXT";
-      }
-
-      const safeColName = field.field_name.replace(/"/g, '""');
-      createTableSQL += `,\n        "${safeColName}" ${columnType}`;
+    if (tableFields.length > 0) {
+      createTableSQL = `
+    CREATE TABLE IF NOT EXISTS "${tableName}" (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER,
+      submitted_at TIMESTAMP DEFAULT NOW(),
+      ${tableFields.join(", ")}
+    )
+  `;
+    } else {
+      // Create table without additional fields if none exist
+      createTableSQL = `
+    CREATE TABLE IF NOT EXISTS "${tableName}" (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER,
+      submitted_at TIMESTAMP DEFAULT NOW()
+    )
+  `;
     }
 
-    createTableSQL += "\n      );";
+    console.log("Creating table with SQL:", createTableSQL);
 
-    await client.query(createTableSQL);
+    try {
+      await client.query(createTableSQL);
+      console.log(`Table ${tableName} created successfully`);
+    } catch (createTableErr) {
+      console.error("Error creating table:", createTableErr);
+      // Try alternative approach
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS "${tableName}" (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER,
+          submitted_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
 
-    // 6. Save table name back to template
+      // Add columns separately
+      if (tableFields.length > 0) {
+        for (const fieldDef of tableFields) {
+          const fieldName = fieldDef.split(" ")[0]; // Extract field name
+          try {
+            await client.query(`
+              ALTER TABLE "${tableName}" 
+              ADD COLUMN IF NOT EXISTS ${fieldName} TEXT
+            `);
+          } catch (alterErr) {
+            console.warn(
+              `Could not add column ${fieldName}:`,
+              alterErr.message
+            );
+          }
+        }
+      }
+    }
+
+    // Update template with table name
     await client.query(
       `UPDATE checksheet_templates SET table_name = $1 WHERE id = $2`,
       [tableName, templateId]
     );
-
-    // 7. Save field metadata
-    for (const field of fields) {
-      await client.query(
-        `
-        INSERT INTO template_fields
-        (
-          template_id, field_name, field_type, label, decimal_places, options,
-          bg_color, text_color, exact_match_text, exact_match_bg_color,
-          min_length, min_length_mode, min_length_warning_bg,
-          max_length, max_length_mode, max_length_warning_bg,
-          multiline, auto_shrink_font,
-          min_value, max_value, bg_color_in_range, bg_color_below_min, 
-          bg_color_above_max, border_color_in_range, border_color_below_min, 
-          border_color_above_max, formula, position, instance_id, sheet_index
-        )
-        VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-          $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-          $21, $22, $23, $24, $25, $26, $27, $28, $29, $30
-        )
-        `,
-        [
-          templateId,
-          field.field_name,
-          field.field_type,
-          field.label,
-          field.decimal_places,
-          field.options ? JSON.stringify(field.options) : null,
-          field.bg_color,
-          field.text_color,
-          field.exact_match_text,
-          field.exact_match_bg_color,
-          field.min_length,
-          field.min_length_mode,
-          field.min_length_warning_bg,
-          field.max_length,
-          field.max_length_mode,
-          field.max_length_warning_bg,
-          field.multiline,
-          field.auto_shrink_font,
-          field.min_value,
-          field.max_value,
-          field.bg_color_in_range,
-          field.bg_color_below_min,
-          field.bg_color_above_max,
-          field.border_color_in_range,
-          field.border_color_below_min,
-          field.border_color_above_max,
-          field.formula,
-          field.position,
-          field.instance_id,
-          field.sheet_index,
-        ]
-      );
-    }
 
     await client.query("COMMIT");
 
     res.json({
       success: true,
       template_id: templateId,
-      saved_images: Object.keys(savedImages).length,
-      message: "Form published successfully with images",
+      message: "Form published successfully",
+      table_name: tableName,
     });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -279,9 +417,8 @@ router.post("/templates", async (req, res) => {
 });
 
 // ==============================
-// GET TEMPLATE BY ID (with all configurations) - FIXED VERSION
+// GET IMAGE ENDPOINT
 // ==============================
-
 router.get("/templates/:id/images/:imageId", async (req, res) => {
   const { id, imageId } = req.params;
 
@@ -324,7 +461,7 @@ router.get("/templates/:id/images/:imageId", async (req, res) => {
 });
 
 // ==============================
-// NEW: GET ALL IMAGES FOR TEMPLATE (optional)
+// GET ALL IMAGES FOR TEMPLATE
 // ==============================
 router.get("/templates/:id/images", async (req, res) => {
   const { id } = req.params;
@@ -332,10 +469,10 @@ router.get("/templates/:id/images", async (req, res) => {
   try {
     const imagesRes = await pool.query(
       `
-      SELECT id, original_path, filename, mime_type, size, created_at
+      SELECT id, original_path, filename, mime_type, size, position_index, element_id, created_at
       FROM template_images 
       WHERE template_id = $1
-      ORDER BY filename
+      ORDER BY position_index ASC NULLS LAST, filename
       `,
       [id]
     );
@@ -355,13 +492,13 @@ router.get("/templates/:id/images", async (req, res) => {
 });
 
 // ==============================
-// UPDATE GET TEMPLATE BY ID ENDPOINT
+// GET TEMPLATE BY ID (COMPLETE)
 // ==============================
 router.get("/templates/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Get template basic info
+    // Get template basic info including CSS
     const templateRes = await pool.query(
       `
       SELECT 
@@ -400,155 +537,13 @@ router.get("/templates/:id", async (req, res) => {
       [id]
     );
 
-    // Get images count for this template
+    // Get images for this template
     const imagesRes = await pool.query(
-      `SELECT COUNT(*) as image_count FROM template_images WHERE template_id = $1`,
-      [id]
-    );
-
-    // Parse JSON fields
-    const template = templateRes.rows[0];
-
-    // Parse JSON data if it exists
-    if (template.field_configurations) {
-      try {
-        template.field_configurations =
-          typeof template.field_configurations === "string"
-            ? JSON.parse(template.field_configurations)
-            : template.field_configurations;
-      } catch (e) {
-        template.field_configurations = {};
-      }
-    } else {
-      template.field_configurations = {};
-    }
-
-    if (template.field_positions) {
-      try {
-        template.field_positions =
-          typeof template.field_positions === "string"
-            ? JSON.parse(template.field_positions)
-            : template.field_positions;
-      } catch (e) {
-        template.field_positions = {};
-      }
-    } else {
-      template.field_positions = {};
-    }
-
-    if (template.sheets) {
-      try {
-        template.sheets =
-          typeof template.sheets === "string"
-            ? JSON.parse(template.sheets)
-            : template.sheets;
-      } catch (e) {
-        template.sheets = [];
-      }
-    } else {
-      template.sheets = [];
-    }
-
-    // Process field data
-    const fields = fieldsRes.rows.map((field) => {
-      const processedField = {
-        field_name: field.field_name,
-        field_type: field.field_type,
-        label: field.label,
-        decimal_places: field.decimal_places,
-        options: field.options
-          ? typeof field.options === "string"
-            ? JSON.parse(field.options)
-            : field.options
-          : null,
-        bg_color: field.bg_color,
-        text_color: field.text_color,
-        exact_match_text: field.exact_match_text,
-        exact_match_bg_color: field.exact_match_bg_color,
-        min_length: field.min_length,
-        min_length_mode: field.min_length_mode,
-        min_length_warning_bg: field.min_length_warning_bg,
-        max_length: field.max_length,
-        max_length_mode: field.max_length_mode,
-        max_length_warning_bg: field.max_length_warning_bg,
-        multiline: field.multiline,
-        auto_shrink_font: field.auto_shrink_font,
-        min_value: field.min_value,
-        max_value: field.max_value,
-        bg_color_in_range: field.bg_color_in_range,
-        bg_color_below_min: field.bg_color_below_min,
-        bg_color_above_max: field.bg_color_above_max,
-        border_color_in_range: field.border_color_in_range,
-        border_color_below_min: field.border_color_below_min,
-        border_color_above_max: field.border_color_above_max,
-        formula: field.formula,
-        position: field.position,
-        instance_id: field.instance_id,
-        sheet_index: field.sheet_index,
-      };
-
-      return processedField;
-    });
-
-    res.json({
-      success: true,
-      template: {
-        ...template,
-        fields: fields,
-        image_count: parseInt(imagesRes.rows[0].image_count) || 0,
-      },
-    });
-  } catch (err) {
-    console.error("Get template error:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error",
-      details: err.message,
-    });
-  }
-});
-
-// Update the GET template endpoint:
-
-router.get("/templates/:id", async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    // Get template basic info INCLUDING CSS
-    const templateRes = await pool.query(
       `
-      SELECT 
-        id, name, html_content, field_configurations, 
-        field_positions, sheets, table_name, created_at,
-        css_content  -- NEW: Include CSS
-      FROM checksheet_templates 
-      WHERE id = $1
-      `,
-      [id]
-    );
-
-    if (templateRes.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Template not found",
-      });
-    }
-
-    // Get all field configurations
-    const fieldsRes = await pool.query(
-      `
-      SELECT 
-        field_name, field_type, label, decimal_places, options,
-        bg_color, text_color, exact_match_text, exact_match_bg_color,
-        min_length, min_length_mode, min_length_warning_bg,
-        max_length, max_length_mode, max_length_warning_bg,
-        multiline, auto_shrink_font,
-        min_value, max_value, bg_color_in_range, bg_color_below_min, 
-        bg_color_above_max, border_color_in_range, border_color_below_min, 
-        border_color_above_max, formula, position, instance_id, sheet_index
-      FROM template_fields 
-      WHERE template_id = $1 
-      ORDER BY id
+      SELECT id, filename, original_path, position_index, element_id
+      FROM template_images 
+      WHERE template_id = $1
+      ORDER BY position_index ASC NULLS LAST, filename
       `,
       [id]
     );
@@ -638,12 +633,22 @@ router.get("/templates/:id", async (req, res) => {
       return processedField;
     });
 
+    // Process images
+    const images = imagesRes.rows.map((image) => ({
+      id: image.id,
+      filename: image.filename,
+      original_path: image.original_path,
+      position_index: image.position_index,
+      element_id: image.element_id,
+    }));
+
     res.json({
       success: true,
       template: {
         ...template,
         fields: fields,
-        // css_content is already included in template object
+        images: images,
+        image_count: images.length,
       },
     });
   } catch (err) {
@@ -676,7 +681,7 @@ router.get("/templates", async (req, res) => {
 });
 
 // ==============================
-// SUBMIT DATA TO DYNAMIC TABLE (unchanged)
+// SUBMIT DATA TO DYNAMIC TABLE
 // ==============================
 router.post("/submissions", async (req, res) => {
   const { template_id, user_id, data } = req.body;
@@ -840,7 +845,7 @@ router.delete("/templates/:id", async (req, res) => {
       }
     }
 
-    // 3. Delete images (CASCADE will handle this, but explicit is better)
+    // 3. Delete images
     await client.query("DELETE FROM template_images WHERE template_id = $1", [
       id,
     ]);

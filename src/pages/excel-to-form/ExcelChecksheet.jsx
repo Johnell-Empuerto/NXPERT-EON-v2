@@ -15,6 +15,18 @@ import "./ExcelChecksheet.css";
 import swal from "sweetalert";
 
 const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("token");
+    return token
+      ? {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        }
+      : {
+          "Content-Type": "application/json",
+        };
+  };
+
   const [htmlContent, setHtmlContent] = useState(initialHtml);
   const [formData, setFormData] = useState({});
   const [fieldConfigs, setFieldConfigs] = useState({});
@@ -445,32 +457,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         try {
           const blob = await zip.files[filename].async("blob");
           const name = filename.split("/").pop();
-
-          // Convert blob to base64 for database storage
-          const base64 = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              const result = reader.result;
-              // Get base64 string (remove data:image/png;base64, prefix)
-              const base64String = result.split(",")[1];
-              resolve(base64String);
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
-
-          // Create blob URL for immediate display
-          const blobUrl = URL.createObjectURL(blob);
-
-          // Store both base64 and blob URL
-          imageMap[name] = {
-            base64: base64,
-            blobUrl: blobUrl,
-            filename: name,
-            mimeType: blob.type,
-            size: blob.size,
-            originalPath: filename,
-          };
+          imageMap[name] = URL.createObjectURL(blob);
         } catch (err) {
           console.warn(`Failed to load image: ${filename}`, err);
         }
@@ -481,15 +468,14 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
 
   const rewriteImageUrls = (html, imageMap) => {
     let result = html;
-    Object.entries(imageMap).forEach(([name, imageData]) => {
-      // Use blob URL for immediate display
+    Object.entries(imageMap).forEach(([name, url]) => {
       result = result.replace(
-        new RegExp(`src=["']([^"']*${name})["']`, "gi"),
-        `src="${imageData.blobUrl}"`
+        new RegExp(`src=["']([^"']*${name})["']`, "g"),
+        `src="${url}"`
       );
       result = result.replace(
-        new RegExp(`src=["']${name}["']`, "gi"),
-        `src="${imageData.blobUrl}"`
+        new RegExp(`src=["']${name}["']`, "g"),
+        `src="${url}"`
       );
     });
     return result;
@@ -867,35 +853,83 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   // In your ExcelChecksheet.js, update the handlePublish function:
 
   const handlePublish = async () => {
-    if (!formName.trim()) return alert("Please enter a form name");
-    if (sheets.length === 0) return alert("No content to publish");
+    console.log("=== PUBLISH BUTTON CLICKED ===");
+
+    /* ===============================
+     AUTH CHECK (ADDED)
+  =============================== */
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders) {
+      alert("Please login to publish forms");
+      return;
+    }
+
+    if (!formName.trim()) {
+      alert("Please enter a form name");
+      return;
+    }
+
+    if (sheets.length === 0) {
+      alert("No content to publish");
+      return;
+    }
+
+    console.log("Form name:", formName);
+    console.log("Sheets count:", sheets.length);
 
     try {
-      // Collect all field configs from all sheets
+      /* ===============================
+       1. COLLECT FIELD CONFIGS
+    =============================== */
+      console.log("Step 1: Collecting field configs...");
       const allConfigs = {};
       const allPositions = {};
+      let hasFields = false;
 
       for (let i = 0; i < sheets.length; i++) {
-        // Use original HTML for field extraction
+        console.log(`Processing sheet ${i}: ${sheets[i].name}`);
         const result = extractFieldConfigs(sheets[i].originalHtml, i);
+
         if (result.error) {
+          console.log(`ERROR in sheet ${i}:`, result.error);
           alert(`Error in sheet "${sheets[i].name}": ${result.error}`);
           return;
         }
-        Object.assign(allConfigs, result.configs);
-        Object.assign(allPositions, assignFieldPositions(result.instances));
+
+        if (Object.keys(result.configs).length > 0) {
+          hasFields = true;
+          Object.assign(allConfigs, result.configs);
+          Object.assign(allPositions, assignFieldPositions(result.instances));
+        }
       }
 
-      // Merge with any user-edited configurations
+      console.log("Field configs collected:", Object.keys(allConfigs).length);
+      console.log(
+        "Field positions collected:",
+        Object.keys(allPositions).length
+      );
+
+      if (!hasFields) {
+        console.warn("WARNING: No form fields detected in HTML!");
+        const userConfirmation = window.confirm(
+          "No form fields ({{field:label}} patterns) were found in your document. " +
+            "Do you want to publish it as a form template without fields?"
+        );
+
+        if (!userConfirmation) {
+          console.log("User cancelled publish due to no fields");
+          return;
+        }
+      }
+
       const finalConfigs = { ...allConfigs, ...fieldConfigs };
 
-      // Clean up field configurations before sending
       const cleanedConfigs = {};
       Object.entries(finalConfigs).forEach(([key, config]) => {
-        // Clean label - remove HTML tags
-        let cleanLabel = config.label || "";
-        cleanLabel = cleanLabel.replace(/<\/?[^>]+(>|$)/g, "").trim();
-        cleanLabel = cleanLabel.replace(/&[a-z]+;/g, "").trim();
+        let cleanLabel = (config.label || "")
+          .replace(/<\/?[^>]+>/g, "")
+          .replace(/&[a-z]+;/gi, "")
+          .trim();
 
         if (cleanLabel.length < 2) {
           cleanLabel = config.originalLabel || `Field_${Date.now()}`;
@@ -918,123 +952,228 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
           autoShrinkFont: config.autoShrinkFont !== false,
           min: config.min || null,
           max: config.max || null,
-          bgColorInRange: config.bgColorInRange || "#ffffff",
-          bgColorBelowMin: config.bgColorBelowMin || "#e3f2fd",
-          bgColorAboveMax: config.bgColorAboveMax || "#ffebee",
-          borderColorInRange: config.borderColorInRange || "#cccccc",
-          borderColorBelowMin: config.borderColorBelowMin || "#2196f3",
-          borderColorAboveMax: config.borderColorAboveMax || "#f44336",
           formula: config.formula || "",
           position: config.position || "",
           instanceId: config.instanceId || key,
           sheetIndex: config.sheetIndex || 0,
+          field_name: config.field_name || key,
         };
       });
 
-      // Get CSS
-      let allCSS = "";
+      /* ===============================
+       2. CSS
+    =============================== */
+      console.log("Step 2: Getting CSS...");
       const excelCSS = document.getElementById("excel-css");
-      if (excelCSS) {
-        allCSS = excelCSS.innerHTML;
-      }
+      let allCSS = excelCSS?.innerHTML || "";
 
       if (!allCSS.trim()) {
         allCSS = `
-      /* Default Excel-like styles */
-      table {
-        border-collapse: collapse;
-        border-spacing: 0;
-      }
-      td, th {
-        border: 1px solid #d4d4d4;
-        padding: 2px 4px;
-        font-family: Arial, sans-serif;
-      }
-      .xl65 {
-        color: #000000;
-        font-size: 11pt;
-      }
-    `;
+        table { border-collapse: collapse; }
+        td, th {
+          border: 1px solid #d4d4d4;
+          padding: 2px 4px;
+          font-family: Arial, sans-serif;
+        }
+      `;
       }
 
-      // Prepare images data for database
-      const imagesData = {};
-      if (images && Object.keys(images).length > 0) {
-        Object.entries(images).forEach(([name, imageData]) => {
-          if (imageData.base64) {
-            imagesData[imageData.originalPath] = {
-              base64: imageData.base64,
-              mimeType: imageData.mimeType,
-              filename: name,
-              size: imageData.size,
+      console.log("CSS length:", allCSS.length);
+
+      /* ===============================
+       3. IMAGE POSITION ANALYSIS
+    =============================== */
+      console.log("Step 3: Analyzing image positions...");
+      const analyzeImagePositions = (html) => {
+        const positions = {};
+        const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+        let match;
+        let index = 0;
+
+        while ((match = imgRegex.exec(html)) !== null) {
+          const src = match[1];
+
+          let filename = "";
+          if (src.includes("blob:")) {
+            for (const [name, blobUrl] of Object.entries(images)) {
+              if (blobUrl === src) {
+                filename = name.includes("/") ? name.split("/").pop() : name;
+                break;
+              }
+            }
+          } else if (src.includes("IMAGE_PLACEHOLDER:")) {
+            filename = src.split("IMAGE_PLACEHOLDER:")[1].replace(/["']/g, "");
+          } else {
+            filename = src.split("/").pop().split("?")[0];
+          }
+
+          if (filename) {
+            positions[filename] = {
+              position: index,
+              originalSrc: src,
+              filename,
             };
           }
-        });
-      }
+          index++;
+        }
+        return positions;
+      };
 
-      // Prepare HTML with image placeholders for database storage
-      let htmlForDatabase = "";
-      if (Object.keys(images).length > 0) {
-        // Use original HTML and replace image references with placeholders
-        const originalHtmlContent = sheets
-          .map((sheet) => sheet.originalHtml)
-          .join("<div style='page-break-before:always'></div>");
-
-        let tempHtml = originalHtmlContent;
-        Object.entries(images).forEach(([name, imageData]) => {
-          const placeholder = `IMAGE_PLACEHOLDER:${imageData.originalPath}`;
-          tempHtml = tempHtml.replace(
-            new RegExp(`src=["'][^"']*${name}["']`, "gi"),
-            `src="${placeholder}"`
-          );
-        });
-        htmlForDatabase = tempHtml;
-      } else {
-        htmlForDatabase = sheets
-          .map((sheet) => sheet.originalHtml)
-          .join("<div style='page-break-before:always'></div>");
-      }
-
-      // Get original HTML content
-      const originalHtmlContent = sheets
-        .map((sheet) => sheet.originalHtml)
+      const combinedHtml = sheets
+        .map((s) => s.originalHtml)
         .join("<div style='page-break-before:always'></div>");
 
+      const imagePositions = analyzeImagePositions(combinedHtml);
+
+      /* ===============================
+       4. IMAGE → BASE64
+    =============================== */
+      console.log("Step 4: Converting images to base64...");
+      const imagesData = {};
+
+      if (images && Object.keys(images).length > 0) {
+        const imageEntries = Object.entries(images);
+        const assignedImages = [];
+
+        imageEntries.forEach(([name, blobUrl], index) => {
+          const filename = name.includes("/") ? name.split("/").pop() : name;
+          let position = imagePositions[filename]?.position ?? index;
+
+          assignedImages.push({
+            name,
+            blobUrl,
+            filename,
+            position,
+            order: index,
+          });
+        });
+
+        assignedImages.sort((a, b) => a.position - b.position);
+
+        for (const img of assignedImages) {
+          const response = await fetch(img.blobUrl);
+          const blob = await response.blob();
+
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result.split(",")[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+
+          imagesData[img.filename] = {
+            base64,
+            mimeType: blob.type,
+            filename: img.filename,
+            size: blob.size,
+            order: img.order,
+            position: img.position,
+            originalSrc: imagePositions[img.filename]?.originalSrc || "",
+          };
+        }
+      }
+
+      /* ===============================
+       5. CREATE HTML WITH PLACEHOLDERS
+    =============================== */
+      let htmlForDatabase = combinedHtml;
+
+      Object.entries(imagesData).forEach(([filename]) => {
+        const blobPattern = new RegExp(`src=["']blob:[^"']*["']`, "gi");
+        htmlForDatabase = htmlForDatabase.replace(
+          blobPattern,
+          `src="IMAGE_PLACEHOLDER:${filename}"`
+        );
+
+        const filenamePattern = new RegExp(
+          `src=["'][^"']*${filename.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+          )}[^"']*["']`,
+          "gi"
+        );
+        htmlForDatabase = htmlForDatabase.replace(
+          filenamePattern,
+          `src="IMAGE_PLACEHOLDER:${filename}"`
+        );
+      });
+
+      /* ===============================
+       6. FILLED VALUES
+    =============================== */
       const filledValues = Object.fromEntries(
         Object.entries(formData)
-          .filter(([_, v]) => v.value != null && v.value !== "")
+          .filter(([_, v]) => v?.value && v.value.trim() !== "")
           .map(([k, v]) => [k, v.value])
       );
 
-      const response = await axios.post(
-        "http://localhost:5000/api/checksheet/templates",
-        {
-          name: formName,
-          html_content: htmlForDatabase, // HTML with placeholders
-          original_html_content: originalHtmlContent, // Original HTML
-          css_content: allCSS.trim(),
-          field_configurations: cleanedConfigs,
-          field_positions: allPositions,
-          form_values: filledValues,
-          images: imagesData, // Send images to database
-          sheets: sheets.map((s) => ({
-            id: s.id,
-            name: s.name,
-            html: s.html, // HTML with blob URLs (for reference)
-            originalHtml: s.originalHtml,
-            index: s.index,
-          })),
-          last_updated: new Date().toISOString(),
-        }
-      );
+      /* ===============================
+       7. API CALL
+    =============================== */
+      const payload = {
+        name: formName,
+        html_content: htmlForDatabase,
+        original_html_content: combinedHtml,
+        css_content: allCSS.trim(),
+        field_configurations: cleanedConfigs,
+        field_positions: allPositions,
+        form_values: filledValues,
+        images: imagesData,
+        sheets: sheets.map((s) => ({
+          id: s.id,
+          name: s.name,
+          html: s.html,
+          originalHtml: s.originalHtml,
+          index: s.index,
+        })),
+        last_updated: new Date().toISOString(),
+      };
 
-      if (response.data.success) {
-        alert(`Form "${formName}" published! ID: ${response.data.template_id}`);
-        setFormName("");
+      const publishBtn = document.querySelector(".primary-btn");
+      const originalText = publishBtn?.textContent || "Publish Form";
+      if (publishBtn) {
+        publishBtn.textContent = "Publishing...";
+        publishBtn.disabled = true;
+      }
+
+      try {
+        const response = await axios.post(
+          "http://localhost:5000/api/checksheet/templates",
+          payload,
+          {
+            timeout: 120000,
+            headers: authHeaders,
+          }
+        );
+
+        if (response.data.success) {
+          alert(
+            `Form "${formName}" published successfully! Template ID: ${response.data.template_id}`
+          );
+          setFormName("");
+        } else {
+          alert(`Publish failed: ${response.data.message || "Unknown error"}`);
+        }
+      } catch (apiError) {
+        if (apiError.response?.status === 401) {
+          alert("Session expired. Please login again.");
+          localStorage.removeItem("token");
+          localStorage.removeItem("userId");
+        } else {
+          alert(
+            `Server error: ${
+              apiError.response?.data?.message || apiError.message
+            }`
+          );
+        }
+      } finally {
+        if (publishBtn) {
+          publishBtn.textContent = originalText;
+          publishBtn.disabled = false;
+        }
       }
     } catch (err) {
-      alert("Publish failed: " + (err.response?.data?.message || err.message));
-      console.error("Publish error:", err);
+      alert("Unexpected error: " + (err.message || "Unknown error"));
     }
   };
 

@@ -310,19 +310,6 @@ const Forms = () => {
                         🗑️ Delete
                       </button>
                     </div>
-
-                    {/* Quick stats */}
-                    <div className="form-stats">
-                      <button
-                        className="stats-btn"
-                        onClick={() =>
-                          fetchTemplateSubmissions(template.id, template.name)
-                        }
-                      >
-                        <span className="stats-label">Submissions:</span>
-                        <span className="stats-value">Click to view</span>
-                      </button>
-                    </div>
                   </div>
                 ))}
               </div>

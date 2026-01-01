@@ -1,4 +1,3 @@
-// src/pages/forms/FormFiller.jsx
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import parse from "html-react-parser";
@@ -16,8 +15,8 @@ const FormFiller = () => {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [currentSheetIndex, setCurrentSheetIndex] = useState(0);
-  const [images, setImages] = useState({}); // Add images state
-  const [processedHtml, setProcessedHtml] = useState(""); // Add processed HTML state
+  const [images, setImages] = useState({});
+  const [processedHtml, setProcessedHtml] = useState("");
 
   // Pan & Zoom state
   const translate = useRef({ x: 0, y: 0 });
@@ -27,6 +26,8 @@ const FormFiller = () => {
   const scaleRef = useRef(1);
   const scalerRef = useRef(null);
   const containerRef = useRef(null);
+  const prevSheetIndexRef = useRef(null);
+  const [sheetStates, setSheetStates] = useState([]);
 
   // Helper to get auth headers
   const getAuthHeaders = () => {
@@ -34,13 +35,12 @@ const FormFiller = () => {
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  // === NEW: Inject Excel CSS into the page ===
+  // Inject Excel CSS into the page
   const injectExcelCSS = (cssText) => {
-    // Remove any previously injected CSS for this filler
     const existing = document.getElementById("excel-css-filler");
     if (existing) existing.remove();
 
-    if (!cssText.trim()) return; // Don't inject empty
+    if (!cssText.trim()) return;
 
     const style = document.createElement("style");
     style.id = "excel-css-filler";
@@ -51,7 +51,6 @@ const FormFiller = () => {
   // Cleanup injected CSS when component unmounts
   useEffect(() => {
     return () => {
-      // Clean up injected CSS
       const fillerStyles = document.querySelectorAll(
         'style[id^="excel-css"], style[id^="excel-css-"]'
       );
@@ -59,9 +58,9 @@ const FormFiller = () => {
     };
   }, []);
 
+  // Close tooltips when clicking outside
   useEffect(() => {
     const handleDocumentClick = (e) => {
-      // Close all tooltips when clicking outside
       const tooltips = document.querySelectorAll(".input-tooltip.visible");
       if (tooltips.length > 0) {
         const isClickInsideTooltip = Array.from(tooltips).some((tooltip) =>
@@ -101,10 +100,71 @@ const FormFiller = () => {
     checkAuthAndLoad();
   }, [templateId, navigate]);
 
-  // Function to load template images
+  // Function to load template images from the template API
   const loadTemplateImages = async () => {
     try {
-      // First, check if there are images in the template
+      // Get the template data which now includes images
+      const templateResponse = await axios.get(
+        `http://localhost:5000/api/checksheet/templates/${templateId}`,
+        { headers: getAuthHeaders() }
+      );
+
+      if (templateResponse.data.success) {
+        const templateData = templateResponse.data.template;
+
+        // Check if images are included in template response
+        if (templateData.images && templateData.images.length > 0) {
+          console.log("=== LOADING IMAGES FROM TEMPLATE API ===");
+          console.log(
+            `Found ${templateData.images.length} images in template response`
+          );
+
+          const imageMap = {};
+          const imagesByPosition = {};
+
+          templateData.images.forEach((image, index) => {
+            console.log(`Image ${index}:`, {
+              id: image.id,
+              filename: image.filename,
+              position_index: image.position_index,
+              element_id: image.element_id,
+            });
+
+            const imageUrl = `http://localhost:5000/api/checksheet/templates/${templateId}/images/${image.id}`;
+            const filename = image.filename || `image_${image.id}`;
+            const position =
+              image.position_index !== null ? image.position_index : index;
+
+            const imageData = {
+              id: image.id,
+              url: imageUrl,
+              filename: filename,
+              originalPath: image.original_path,
+              position: position,
+              elementId: image.element_id,
+            };
+
+            // Add to both maps
+            imageMap[filename] = imageData;
+            imagesByPosition[position] = imageData;
+          });
+
+          console.log("=== IMAGE LOADING SUMMARY ===");
+          console.log("Total images loaded:", Object.keys(imageMap).length);
+          console.log(
+            "Images by position:",
+            Object.entries(imagesByPosition)
+              .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+              .map(([pos, img]) => `${pos}: ${img.filename}`)
+          );
+
+          setImages(imageMap);
+          return { imageMap, imagesByPosition };
+        }
+      }
+
+      // Fallback: Try direct images API
+      console.log("No images in template response, trying images API...");
       const imagesResponse = await axios.get(
         `http://localhost:5000/api/checksheet/templates/${templateId}/images`,
         { headers: getAuthHeaders() }
@@ -112,75 +172,227 @@ const FormFiller = () => {
 
       if (
         imagesResponse.data.success &&
-        imagesResponse.data.images.length > 0
+        imagesResponse.data.images?.length > 0
       ) {
+        console.log(
+          `Found ${imagesResponse.data.images.length} images in images API`
+        );
+
         const imageMap = {};
+        const imagesByPosition = {};
 
-        // Process each image
-        for (const image of imagesResponse.data.images) {
-          // Load the image from the API endpoint
-          const imageUrl = `/api/checksheet/templates/${templateId}/images/${image.id}`;
-
-          // Create a full URL
-          const fullImageUrl = `http://localhost:5000${imageUrl}`;
-
-          imageMap[image.original_path] = {
+        imagesResponse.data.images.forEach((image, index) => {
+          console.log(`Image ${index}:`, {
             id: image.id,
-            url: fullImageUrl,
             filename: image.filename,
-            originalPath: image.original_path,
-          };
-        }
+            position_index: image.position_index,
+          });
 
+          const imageUrl = `http://localhost:5000/api/checksheet/templates/${templateId}/images/${image.id}`;
+          const filename = image.filename || `image_${image.id}`;
+          const position =
+            image.position_index !== null ? image.position_index : index;
+
+          const imageData = {
+            id: image.id,
+            url: imageUrl,
+            filename: filename,
+            originalPath: image.original_path,
+            position: position,
+            elementId: image.element_id,
+          };
+
+          imageMap[filename] = imageData;
+          imagesByPosition[position] = imageData;
+        });
+
+        console.log(
+          "Images loaded from fallback API:",
+          Object.keys(imageMap).length
+        );
         setImages(imageMap);
-        return imageMap;
+        return { imageMap, imagesByPosition };
       }
+
+      console.log("No images found for this template");
+      return { imageMap: {}, imagesByPosition: {} };
     } catch (err) {
-      console.warn("Failed to load template images:", err);
-      // Don't fail the whole template load if images fail
+      console.error("Failed to load template images:", err);
+      return { imageMap: {}, imagesByPosition: {} };
     }
-    return {};
   };
 
   // Function to process HTML and replace image placeholders
-  const processHtmlWithImages = (html, imageMap) => {
-    if (!html || !imageMap || Object.keys(imageMap).length === 0) {
+  const processHtmlWithImages = (html, imageData) => {
+    const { imageMap, imagesByPosition } = imageData;
+    if (!html) return "";
+
+    console.log("=== PROCESSING HTML WITH IMAGES ===");
+    console.log(`Available images: ${Object.keys(imageMap).length}`);
+    console.log(`Images by position: ${Object.keys(imagesByPosition).length}`);
+
+    // If no images, return original HTML
+    if (Object.keys(imageMap).length === 0) {
+      console.log("No images available, returning original HTML");
       return html;
     }
 
     let processedHtml = html;
+    let replacementsMade = 0;
 
-    // Replace image URLs with actual image endpoints
-    Object.entries(imageMap).forEach(([originalPath, imageData]) => {
-      // Create a regex to match the image placeholder
-      // Handle both blob URLs and placeholder formats
-      const placeholderPatterns = [
-        `src=["'][^"']*${originalPath.replace(
-          /[.*+?^${}()|[\]\\]/g,
-          "\\$&"
-        )}["']`,
-        `src=["']blob:[^"']*${imageData.filename.replace(
-          /[.*+?^${}()|[\]\\]/g,
-          "\\$&"
-        )}["']`,
-        `src=["'][^"']*${imageData.filename.replace(
-          /[.*+?^${}()|[\]\\]/g,
-          "\\$&"
-        )}["']`,
-      ];
+    // Find all img tags
+    const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+    const matches = [...html.matchAll(imgRegex)];
 
-      placeholderPatterns.forEach((pattern) => {
-        const regex = new RegExp(pattern, "gi");
-        processedHtml = processedHtml.replace(regex, `src="${imageData.url}"`);
+    console.log(`Found ${matches.length} image tags in HTML`);
+
+    // Method 1: Try position-based matching if we have positions
+    if (Object.keys(imagesByPosition).length > 0 && matches.length > 0) {
+      console.log("Using POSITION-BASED image replacement");
+
+      matches.forEach((match, index) => {
+        const fullMatch = match[0];
+        const src = match[1];
+
+        // Skip if already API URL
+        if (src.includes("/api/checksheet/templates/")) {
+          console.log(`[POSITION ${index}] Already has API URL: ${src}`);
+          return;
+        }
+
+        // Try to find image at this position
+        if (imagesByPosition[index]) {
+          const image = imagesByPosition[index];
+          const newImgTag = fullMatch.replace(
+            /src=["'][^"']*["']/i,
+            `src="${image.url}"`
+          );
+          processedHtml = processedHtml.replace(fullMatch, newImgTag);
+          console.log(`[POSITION ${index}] Replaced with: ${image.filename}`);
+          replacementsMade++;
+        } else {
+          console.log(
+            `[POSITION ${index}] No image at this position, trying filename matching`
+          );
+
+          // Extract filename from src
+          let filename = "";
+          if (src.includes("IMAGE_PLACEHOLDER:")) {
+            filename = src.split("IMAGE_PLACEHOLDER:")[1].replace(/["']/g, "");
+          } else {
+            filename = src.split("/").pop().split("?")[0];
+          }
+
+          // Try to match by filename
+          let matchedImage = null;
+          for (const [key, image] of Object.entries(imageMap)) {
+            if (
+              key === filename ||
+              image.filename === filename ||
+              image.filename.includes(filename) ||
+              filename.includes(image.filename)
+            ) {
+              matchedImage = image;
+              break;
+            }
+          }
+
+          if (matchedImage) {
+            const newImgTag = fullMatch.replace(
+              /src=["'][^"']*["']/i,
+              `src="${matchedImage.url}"`
+            );
+            processedHtml = processedHtml.replace(fullMatch, newImgTag);
+            console.log(
+              `[FALLBACK] Replaced ${filename} with: ${matchedImage.filename} (position ${matchedImage.position})`
+            );
+            replacementsMade++;
+          } else {
+            console.warn(`[POSITION ${index}] No image found for: ${filename}`);
+          }
+        }
       });
-    });
+    }
+    // Method 2: Filename matching (fallback)
+    else if (Object.keys(imageMap).length > 0 && matches.length > 0) {
+      console.log("Using FILENAME-BASED image replacement");
+
+      matches.forEach((match, index) => {
+        const fullMatch = match[0];
+        const src = match[1];
+
+        if (src.includes("/api/checksheet/templates/")) {
+          return;
+        }
+
+        // Extract filename
+        let filename = "";
+        if (src.includes("IMAGE_PLACEHOLDER:")) {
+          filename = src.split("IMAGE_PLACEHOLDER:")[1].replace(/["']/g, "");
+        } else {
+          filename = src.split("/").pop().split("?")[0];
+        }
+
+        console.log(`[MATCH ${index}] Looking for image: ${filename}`);
+
+        let matchedImage = null;
+
+        // Try exact filename match first
+        if (imageMap[filename]) {
+          matchedImage = imageMap[filename];
+        } else {
+          // Try partial match
+          for (const [key, image] of Object.entries(imageMap)) {
+            if (
+              filename.includes(image.filename) ||
+              image.filename.includes(filename)
+            ) {
+              matchedImage = image;
+              break;
+            }
+          }
+        }
+
+        if (matchedImage) {
+          const newImgTag = fullMatch.replace(
+            /src=["'][^"']*["']/i,
+            `src="${matchedImage.url}"`
+          );
+          processedHtml = processedHtml.replace(fullMatch, newImgTag);
+          console.log(
+            `[MATCH ${index}] Replaced ${filename} with: ${matchedImage.filename}`
+          );
+          replacementsMade++;
+        } else {
+          console.warn(
+            `[MATCH ${index}] Could not find image for: ${filename}`
+          );
+        }
+      });
+    }
+
+    console.log(
+      `Total replacements made: ${replacementsMade}/${matches.length}`
+    );
+
+    // If no replacements were made, check if HTML already has correct URLs
+    if (replacementsMade === 0 && matches.length > 0) {
+      const hasCorrectUrls = matches.some((match) =>
+        match[1].includes(`/api/checksheet/templates/${templateId}/images/`)
+      );
+      if (hasCorrectUrls) {
+        console.log("HTML already has correct image URLs");
+      }
+    }
 
     return processedHtml;
   };
 
+  // Load template with proper pan/zoom state management
   const loadTemplate = async () => {
     setLoading(true);
     setError(null);
+
     try {
       // Load template data
       const response = await axios.get(
@@ -190,41 +402,50 @@ const FormFiller = () => {
 
       if (response.data.success) {
         const templateData = response.data.template;
+        console.log("Template loaded:", templateData.name);
+        console.log("Template has images:", templateData.images?.length || 0);
+
         setTemplate(templateData);
 
-        // === IMPORTANT: Remove all existing injected styles ===
+        // Remove all existing injected styles
         const existingStyles = document.querySelectorAll(
           'style[id^="excel-css"], style[id^="excel-css-"]'
         );
         existingStyles.forEach((style) => style.remove());
 
-        // === Inject the saved CSS ===
+        // Inject the saved CSS
         if (templateData.css_content && templateData.css_content.trim()) {
-          const style = document.createElement("style");
-          style.id = "excel-css-filler";
-          style.innerHTML = templateData.css_content;
-          document.head.appendChild(style);
-        } else {
-          console.warn("No CSS content found in template");
+          injectExcelCSS(templateData.css_content);
+          console.log("CSS injected");
         }
 
-        // === LOAD AND PROCESS IMAGES ===
-        const imageMap = await loadTemplateImages();
+        // Load and process images
+        const imageData = await loadTemplateImages();
+        console.log(
+          "Image data loaded:",
+          Object.keys(imageData.imageMap).length
+        );
 
         // Get HTML content
         let htmlContent = "";
         if (templateData.sheets && templateData.sheets.length > 0) {
           htmlContent =
-            templateData.sheets[0]?.html || templateData.html_content || "";
+            templateData.sheets[currentSheetIndex]?.html ||
+            templateData.sheets[0]?.html ||
+            templateData.html_content ||
+            "";
         } else {
           htmlContent = templateData.html_content || "";
         }
 
+        console.log("HTML content length:", htmlContent.length);
+
         // Process HTML to replace image placeholders
         const processedHtmlContent = processHtmlWithImages(
           htmlContent,
-          imageMap
+          imageData
         );
+
         setProcessedHtml(processedHtmlContent);
 
         // Initialize form data
@@ -235,11 +456,18 @@ const FormFiller = () => {
           });
         }
         setFormData(initialData);
+
+        // Initialize sheet states
+        const sheetCount = templateData.sheets?.length || 1;
+        setSheetStates(Array(sheetCount).fill(null));
+
+        console.log("Template loading complete");
       } else {
         setError("Failed to load template");
       }
     } catch (err) {
       console.error("Load template error:", err);
+
       if (err.response?.status === 401 || err.response?.status === 403) {
         alert("Session expired. Please login again.");
         localStorage.removeItem("token");
@@ -252,6 +480,164 @@ const FormFiller = () => {
       setLoading(false);
     }
   };
+
+  // Handle sheet tab switching with pan/zoom state preservation
+  const handleSheetChange = (index) => {
+    // Save current sheet state
+    if (currentSheetIndex >= 0 && scalerRef.current) {
+      setSheetStates((prev) => {
+        const newStates = [...prev];
+        newStates[currentSheetIndex] = {
+          scale: scaleRef.current,
+          translate: { ...translate.current },
+        };
+        return newStates;
+      });
+    }
+
+    // Update sheet index
+    setCurrentSheetIndex(index);
+
+    // Load new sheet HTML
+    if (template?.sheets && template.sheets[index]) {
+      const sheetHtml =
+        template.sheets[index]?.html || template.html_content || "";
+
+      // Re-process images for this sheet
+      const imageData = { imageMap: images, imagesByPosition: {} };
+      const processedHtmlContent = processHtmlWithImages(sheetHtml, imageData);
+      setProcessedHtml(processedHtmlContent);
+    }
+  };
+
+  // Pan & Zoom logic with per-sheet state management
+  useEffect(() => {
+    const scaler = scalerRef.current;
+    const container = containerRef.current;
+    if (!scaler || !container || !template) return;
+
+    // Load saved state or compute initial
+    let savedState = sheetStates[currentSheetIndex];
+    let initialScale = 1;
+    const tableWidth = scaler.scrollWidth;
+    const availableWidth = container.clientWidth - 40;
+    if (tableWidth > availableWidth) {
+      initialScale = Math.max(availableWidth / tableWidth, 0.35);
+    }
+
+    if (savedState) {
+      scaleRef.current = savedState.scale;
+      translate.current = { ...savedState.translate };
+    } else {
+      scaleRef.current = initialScale;
+      translate.current = { x: 0, y: 0 };
+      // Save initial state
+      setSheetStates((prev) => {
+        const newStates = [...prev];
+        newStates[currentSheetIndex] = {
+          scale: initialScale,
+          translate: { x: 0, y: 0 },
+        };
+        return newStates;
+      });
+    }
+
+    // Apply transform
+    scaler.style.transform = `translate(${translate.current.x}px, ${translate.current.y}px) scale(${scaleRef.current})`;
+
+    const handleMouseEnter = () => {
+      isOverForm.current = true;
+      scaler.style.cursor = "grab";
+    };
+
+    const handleMouseLeave = () => {
+      isOverForm.current = false;
+      isDragging.current = false;
+      scaler.style.cursor = "default";
+    };
+
+    const handleWheel = (e) => {
+      if (!isOverForm.current) return;
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      const currentScale = scaleRef.current;
+      const newScale = Math.max(0.35, Math.min(3, currentScale * delta));
+
+      const rect = scaler.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const dx = (mouseX - translate.current.x) * (1 - newScale / currentScale);
+      const dy = (mouseY - translate.current.y) * (1 - newScale / currentScale);
+
+      translate.current.x += dx;
+      translate.current.y += dy;
+      scaleRef.current = newScale;
+
+      scaler.style.transform = `translate(${translate.current.x}px, ${translate.current.y}px) scale(${newScale})`;
+
+      // Update sheet state
+      setSheetStates((prev) => {
+        const newStates = [...prev];
+        newStates[currentSheetIndex] = {
+          scale: newScale,
+          translate: { ...translate.current },
+        };
+        return newStates;
+      });
+    };
+
+    const handleMouseDown = (e) => {
+      if (!isOverForm.current) return;
+      if (["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(e.target.tagName))
+        return;
+      if (e.button === 0) {
+        isDragging.current = true;
+        dragStart.current = { x: e.clientX, y: e.clientY };
+        scaler.style.cursor = "grabbing";
+        e.preventDefault();
+      }
+    };
+
+    const handleMouseMove = (e) => {
+      if (!isDragging.current) return;
+      translate.current.x += e.clientX - dragStart.current.x;
+      translate.current.y += e.clientY - dragStart.current.y;
+      dragStart.current = { x: e.clientX, y: e.clientY };
+      scaler.style.transform = `translate(${translate.current.x}px, ${translate.current.y}px) scale(${scaleRef.current})`;
+
+      // Update sheet state
+      setSheetStates((prev) => {
+        const newStates = [...prev];
+        newStates[currentSheetIndex] = {
+          scale: scaleRef.current,
+          translate: { ...translate.current },
+        };
+        return newStates;
+      });
+    };
+
+    const handleMouseUp = () => {
+      isDragging.current = false;
+      scaler.style.cursor = isOverForm.current ? "grab" : "default";
+    };
+
+    scaler.addEventListener("mouseenter", handleMouseEnter);
+    scaler.addEventListener("mouseleave", handleMouseLeave);
+    scaler.addEventListener("wheel", handleWheel, { passive: false });
+    scaler.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      scaler.removeEventListener("mouseenter", handleMouseEnter);
+      scaler.removeEventListener("mouseleave", handleMouseLeave);
+      scaler.removeEventListener("wheel", handleWheel);
+      scaler.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [template, currentSheetIndex, sheetStates]);
 
   const handleFieldChange = (fieldName, value) => {
     setFormData((prev) => ({
@@ -318,83 +704,6 @@ const FormFiller = () => {
     }
   };
 
-  // Pan & Zoom logic (keep as is)
-  useEffect(() => {
-    const scaler = scalerRef.current;
-    const container = containerRef.current;
-    if (!scaler || !container || !template) return;
-
-    const handleMouseEnter = () => {
-      isOverForm.current = true;
-      scaler.style.cursor = "grab";
-    };
-    const handleMouseLeave = () => {
-      isOverForm.current = false;
-      isDragging.current = false;
-      scaler.style.cursor = "default";
-    };
-    const handleWheel = (e) => {
-      if (!isOverForm.current) return;
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? 0.9 : 1.1;
-      const newScale = Math.max(0.35, Math.min(3, scaleRef.current * delta));
-
-      const rect = scaler.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
-
-      const dx =
-        (mouseX - translate.current.x) * (1 - newScale / scaleRef.current);
-      const dy =
-        (mouseY - translate.current.y) * (1 - newScale / scaleRef.current);
-
-      translate.current.x += dx;
-      translate.current.y += dy;
-      scaleRef.current = newScale;
-
-      scaler.style.transform = `translate(${translate.current.x}px, ${translate.current.y}px) scale(${newScale})`;
-    };
-    const handleMouseDown = (e) => {
-      if (!isOverForm.current) return;
-      if (["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(e.target.tagName))
-        return;
-      if (e.button === 0) {
-        isDragging.current = true;
-        dragStart.current = { x: e.clientX, y: e.clientY };
-        scaler.style.cursor = "grabbing";
-        e.preventDefault();
-      }
-    };
-    const handleMouseMove = (e) => {
-      if (!isDragging.current) return;
-      translate.current.x += e.clientX - dragStart.current.x;
-      translate.current.y += e.clientY - dragStart.current.y;
-      dragStart.current = { x: e.clientX, y: e.clientY };
-      scaler.style.transform = `translate(${translate.current.x}px, ${translate.current.y}px) scale(${scaleRef.current})`;
-    };
-    const handleMouseUp = () => {
-      isDragging.current = false;
-      scaler.style.cursor = isOverForm.current ? "grab" : "default";
-    };
-
-    scaler.addEventListener("mouseenter", handleMouseEnter);
-    scaler.addEventListener("mouseleave", handleMouseLeave);
-    scaler.addEventListener("wheel", handleWheel, { passive: false });
-    scaler.addEventListener("mousedown", handleMouseDown);
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-
-    return () => {
-      scaler.removeEventListener("mouseenter", handleMouseEnter);
-      scaler.removeEventListener("mouseleave", handleMouseLeave);
-      scaler.removeEventListener("wheel", handleWheel);
-      scaler.removeEventListener("mousedown", handleMouseDown);
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [template]);
-
-  // Parse HTML with field replacement
   const parseOptions = {
     replace: (node) => {
       // Handle form fields
@@ -423,7 +732,9 @@ const FormFiller = () => {
               f.field_name === cleanLabel.replace(/\s+/g, "_").toLowerCase()
           );
 
-          if (!fieldConfig) return;
+          if (!fieldConfig) {
+            return;
+          }
 
           const fieldName = fieldConfig.instance_id || fieldConfig.field_name;
           const value = formData[fieldName] || "";
@@ -445,38 +756,66 @@ const FormFiller = () => {
         return <>{parts}</>;
       }
 
-      // Handle image tags - replace src with actual image URLs
+      // Handle image tags
       if (node.type === "tag" && node.name === "img") {
         const src = node.attribs?.src || "";
 
-        // If it's already a proper URL, keep it
-        if (
-          src.startsWith("http") ||
-          src.startsWith("/api/checksheet/templates/")
-        ) {
+        // If it's already an API URL, leave it as is
+        if (src.includes("/api/checksheet/templates/")) {
           return React.createElement("img", {
             ...node.attribs,
-            key: `img-${src}`,
+            key: `img-${src}-${Math.random()}`,
           });
         }
 
-        // Try to find matching image in our image map
-        for (const [originalPath, imageData] of Object.entries(images)) {
-          if (src.includes(imageData.filename) || src.includes(originalPath)) {
+        // If it's a placeholder, try to find the image
+        if (src.includes("IMAGE_PLACEHOLDER:")) {
+          const filename = src
+            .split("IMAGE_PLACEHOLDER:")[1]
+            .replace(/["']/g, "");
+          const image = Object.values(images).find(
+            (img) =>
+              img.filename === filename ||
+              img.filename.includes(filename) ||
+              filename.includes(img.filename)
+          );
+
+          if (image) {
             return React.createElement("img", {
               ...node.attribs,
-              key: `img-${imageData.id}`,
-              src: imageData.url,
-              alt: imageData.filename,
+              src: image.url,
+              key: `img-${image.id}`,
+              alt: image.filename,
             });
           }
         }
 
-        // Return original if no match found
+        // Return original img tag
         return React.createElement("img", {
           ...node.attribs,
-          key: `img-${src}`,
+          key: `img-${src}-${Math.random()}`,
         });
+      }
+
+      // Handle VML imagedata tags (Excel specific)
+      if (node.type === "tag" && node.name === "v:imagedata") {
+        const src = node.attribs?.src || "";
+
+        // Try to match VML image
+        for (const [originalPath, imageData] of Object.entries(images)) {
+          if (src.includes(imageData.filename)) {
+            // Convert VML to regular img tag
+            return React.createElement("img", {
+              src: imageData.url,
+              alt: imageData.filename,
+              style: {
+                width: node.attribs?.style?.width || "auto",
+                height: node.attribs?.style?.height || "auto",
+              },
+              key: `vml-img-${imageData.id}`,
+            });
+          }
+        }
       }
 
       return undefined;
@@ -773,7 +1112,7 @@ const FormFiller = () => {
               className={`sheet-tab ${
                 currentSheetIndex === index ? "active" : ""
               }`}
-              onClick={() => setCurrentSheetIndex(index)}
+              onClick={() => handleSheetChange(index)}
             >
               {sheet.name || `Sheet ${index + 1}`}
             </button>
