@@ -4,6 +4,8 @@ import parse from "html-react-parser";
 import axios from "axios";
 import "./FormFiller.css";
 import Tooltip from "../excel-to-form/tools/Tooltip";
+import CalculationField from "../excel-to-form/excel-to-form-components/CalculationField";
+import API_BASE_URL from "../../config/api";
 
 const FormFiller = () => {
   const { templateId } = useParams();
@@ -100,13 +102,38 @@ const FormFiller = () => {
     checkAuthAndLoad();
   }, [templateId, navigate]);
 
+  const fieldValueMap = useMemo(() => {
+    const map = {};
+    template?.fields?.forEach((field) => {
+      if (field.position) {
+        const fieldValue = formData[field.instance_id || field.field_name] || 0;
+        const numValue = parseFloat(fieldValue);
+        map[field.position] = isNaN(numValue) ? 0 : numValue;
+      }
+    });
+    return map;
+  }, [formData, template]);
+
+  const allFields = useMemo(() => {
+    if (!Array.isArray(template?.fields)) return [];
+    return template.fields.map((field) => ({
+      position: field.position,
+      type: field.field_type,
+      label: field.label,
+      instanceId: field.instance_id || field.field_name,
+      value: formData[field.instance_id || field.field_name] || "",
+    }));
+  }, [template, formData]);
+
   // Function to load template images from the template API
   const loadTemplateImages = async () => {
     try {
       // Get the template data which now includes images
       const templateResponse = await axios.get(
-        `http://localhost:5000/api/checksheet/templates/${templateId}`,
-        { headers: getAuthHeaders() }
+        `${API_BASE_URL}/api/checksheet/templates/${templateId}`,
+        {
+          headers: getAuthHeaders(),
+        }
       );
 
       if (templateResponse.data.success) {
@@ -130,7 +157,7 @@ const FormFiller = () => {
               element_id: image.element_id,
             });
 
-            const imageUrl = `http://localhost:5000/api/checksheet/templates/${templateId}/images/${image.id}`;
+            const imageUrl = `${API_BASE_URL}/api/checksheet/templates/${templateId}/images/${image.id}`;
             const filename = image.filename || `image_${image.id}`;
             const position =
               image.position_index !== null ? image.position_index : index;
@@ -166,8 +193,10 @@ const FormFiller = () => {
       // Fallback: Try direct images API
       console.log("No images in template response, trying images API...");
       const imagesResponse = await axios.get(
-        `http://localhost:5000/api/checksheet/templates/${templateId}/images`,
-        { headers: getAuthHeaders() }
+        `${API_BASE_URL}/api/checksheet/templates/${templateId}/images`,
+        {
+          headers: getAuthHeaders(),
+        }
       );
 
       if (
@@ -188,7 +217,7 @@ const FormFiller = () => {
             position_index: image.position_index,
           });
 
-          const imageUrl = `http://localhost:5000/api/checksheet/templates/${templateId}/images/${image.id}`;
+          const imageUrl = `${API_BASE_URL}/api/checksheet/templates/${templateId}/images/${image.id}`;
           const filename = image.filename || `image_${image.id}`;
           const position =
             image.position_index !== null ? image.position_index : index;
@@ -396,8 +425,10 @@ const FormFiller = () => {
     try {
       // Load template data
       const response = await axios.get(
-        `http://localhost:5000/api/checksheet/templates/${templateId}`,
-        { headers: getAuthHeaders() }
+        `${API_BASE_URL}/api/checksheet/templates/${templateId}`,
+        {
+          headers: getAuthHeaders(),
+        }
       );
 
       if (response.data.success) {
@@ -674,13 +705,15 @@ const FormFiller = () => {
       }
 
       const response = await axios.post(
-        "http://localhost:5000/api/checksheet/submissions",
+        `${API_BASE_URL}/api/checksheet/submissions`,
         {
           template_id: templateId,
           user_id: userId,
           data: formData,
         },
-        { headers: getAuthHeaders() }
+        {
+          headers: getAuthHeaders(),
+        }
       );
 
       if (response.data.success) {
@@ -840,24 +873,100 @@ const FormFiller = () => {
       max_length_warning_bg: maxLengthWarningBg = "#fff3cd",
       multiline,
       bg_color_in_range: bgColorInRange = "#ffffff",
+      bg_color_below_min: bgColorBelowMin = "#e3f2fd",
+      bg_color_above_max: bgColorAboveMax = "#ffebee",
       border_color_in_range: borderColorInRange = "#cccccc",
+      border_color_below_min: borderColorBelowMin = "#2196f3",
+      border_color_above_max: borderColorAboveMax = "#f44336",
       position: fieldPosition = "",
+      formula, // This should come from fieldConfig if available
+      required, // Add this if needed
     } = fieldConfig;
 
     const getBackgroundColor = (val) => {
-      if (exactMatchText && val.trim() === exactMatchText.trim())
+      // Handle empty values
+      if (!val || val === "") {
+        return bgColorInRange || bg_color;
+      }
+
+      // Exact match check (for text fields)
+      if (exactMatchText && val.trim() === exactMatchText.trim()) {
         return exactMatchBgColor || "#d4edda";
+      }
+
+      // Length validation (for text fields)
       if (minLength && val.length < minLength) return minLengthWarningBg;
       if (maxLength && val.length > maxLength) return maxLengthWarningBg;
 
+      // Number validation
       if (type === "number" && val) {
         const num = parseFloat(val);
         if (!isNaN(num)) {
-          if (min !== null && num < min) return "#e3f2fd";
-          if (max !== null && num > max) return "#ffebee";
+          // Convert min/max to numbers if they're strings
+          const minNum = min != null ? parseFloat(min) : null;
+          const maxNum = max != null ? parseFloat(max) : null;
+
+          // Check if below minimum
+          if (minNum !== null && !isNaN(minNum) && num < minNum) {
+            return bgColorBelowMin || "#e3f2fd";
+          }
+
+          // Check if above maximum
+          if (maxNum !== null && !isNaN(maxNum) && num > maxNum) {
+            return bgColorAboveMax || "#ffebee";
+          }
+
+          // Value is in range
+          return bgColorInRange || bg_color;
         }
       }
-      return bg_color;
+
+      // Default: use bgColorInRange if available, otherwise bg_color
+      return bgColorInRange || bg_color;
+    };
+
+    const getBorderColor = (val) => {
+      // Handle empty values
+      if (!val || val === "") {
+        return borderColorInRange || "#cccccc";
+      }
+
+      // Exact match check (for text fields) - use in-range border
+      if (exactMatchText && val.trim() === exactMatchText.trim()) {
+        return borderColorInRange || "#cccccc";
+      }
+
+      // Length validation (for text fields) - use in-range border
+      if (minLength && val.length < minLength)
+        return borderColorInRange || "#cccccc";
+      if (maxLength && val.length > maxLength)
+        return borderColorInRange || "#cccccc";
+
+      // Number validation
+      if (type === "number" && val) {
+        const num = parseFloat(val);
+        if (!isNaN(num)) {
+          // Convert min/max to numbers if they're strings
+          const minNum = min != null ? parseFloat(min) : null;
+          const maxNum = max != null ? parseFloat(max) : null;
+
+          // Check if below minimum
+          if (minNum !== null && !isNaN(minNum) && num < minNum) {
+            return borderColorBelowMin || "#2196f3";
+          }
+
+          // Check if above maximum
+          if (maxNum !== null && !isNaN(maxNum) && num > maxNum) {
+            return borderColorAboveMax || "#f44336";
+          }
+
+          // Value is in range
+          return borderColorInRange || "#cccccc";
+        }
+      }
+
+      // Default: use borderColorInRange
+      return borderColorInRange || "#cccccc";
     };
 
     const commonProps = {
@@ -867,7 +976,7 @@ const FormFiller = () => {
       style: {
         backgroundColor: getBackgroundColor(value),
         color: text_color,
-        border: `1px solid ${borderColorInRange}`,
+        border: `1px solid ${getBorderColor(value)}`,
         width: "100%",
         padding: "8px 10px",
         boxSizing: "border-box",
@@ -885,6 +994,10 @@ const FormFiller = () => {
 
       // Add field type
       parts.push(`<strong>Type:</strong> ${type}`);
+
+      if (type === "calculation" && formula) {
+        parts.push(`<strong>Formula:</strong> ${formula}`);
+      }
 
       // Add validation info
       if (min !== null || max !== null) {
@@ -994,6 +1107,26 @@ const FormFiller = () => {
           </div>
         );
         return renderFieldWithTooltip(checkboxField);
+
+      case "calculation":
+        const calculationField = (
+          <CalculationField
+            label={label}
+            name={fieldName}
+            value={value}
+            onChange={(name, val, fieldType, fieldLabel) => {
+              // CalculationField sends 4 args, but FormFiller expects just (name, value)
+              handleFieldChange(name, val);
+            }}
+            formula={formula}
+            decimalPlaces={decimalPlaces || 0}
+            formData={formData}
+            fieldPosition={fieldPosition}
+            fieldValueMap={fieldValueMap}
+            allFields={allFields}
+          />
+        );
+        return renderFieldWithTooltip(calculationField);
 
       case "dropdown":
         const optionList = options

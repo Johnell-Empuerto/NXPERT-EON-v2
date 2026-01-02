@@ -13,6 +13,7 @@ import FieldEditorModal from "./FieldEditorModal";
 import { getFieldTypeInfo } from "./excel-to-form-utils/fieldRegistry";
 import "./ExcelChecksheet.css";
 import swal from "sweetalert";
+import API_BASE_URL from "../../config/api";
 
 const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   const getAuthHeaders = () => {
@@ -1103,8 +1104,21 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     =============================== */
       const filledValues = Object.fromEntries(
         Object.entries(formData)
-          .filter(([_, v]) => v?.value && v.value.trim() !== "")
-          .map(([k, v]) => [k, v.value])
+          .filter(([_, v]) => {
+            // v could be an object {value, type, label} or just a string
+            const value = v?.value !== undefined ? v.value : v;
+            return (
+              value !== null &&
+              value !== undefined &&
+              value !== "" &&
+              (typeof value !== "string" || value.trim() !== "")
+            );
+          })
+          .map(([k, v]) => {
+            // Extract value from object or use v directly
+            const value = v?.value !== undefined ? v.value : v;
+            return [k, value];
+          })
       );
 
       /* ===============================
@@ -1138,7 +1152,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
 
       try {
         const response = await axios.post(
-          "http://localhost:5000/api/checksheet/templates",
+          `${API_BASE_URL}/api/checksheet/templates`,
           payload,
           {
             timeout: 120000,

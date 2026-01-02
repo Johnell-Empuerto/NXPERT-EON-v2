@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./Forms.css"; // We'll create this CSS file
 import { useNavigate } from "react-router-dom";
+import API_BASE_URL from "../../config/api";
 const Forms = () => {
   const [activeTab, setActiveTab] = useState("available");
   const [templates, setTemplates] = useState([]);
@@ -18,8 +19,9 @@ const Forms = () => {
     setLoading(true);
     try {
       const response = await axios.get(
-        "http://localhost:5000/api/checksheet/templates"
+        `${API_BASE_URL}/api/checksheet/templates`
       );
+
       if (response.data.success) {
         setTemplates(response.data.templates || []);
       }
@@ -39,7 +41,7 @@ const Forms = () => {
 
       // First get all templates
       const templatesRes = await axios.get(
-        "http://localhost:5000/api/checksheet/templates"
+        `${API_BASE_URL}/api/checksheet/templates`
       );
       if (templatesRes.data.success) {
         const templatesList = templatesRes.data.templates || [];
@@ -48,7 +50,8 @@ const Forms = () => {
         for (const template of templatesList) {
           try {
             const subsRes = await axios.get(
-              `http://localhost:5000/api/checksheet/templates/${template.id}/submissions`
+              `${API_BASE_URL}/api/checksheet/templates/${template.id}/submissions`,
+              { headers: getAuthHeaders() }
             );
             if (subsRes.data.success && subsRes.data.submissions) {
               subsRes.data.submissions.forEach((sub) => {
@@ -83,7 +86,7 @@ const Forms = () => {
 
     try {
       const response = await axios.get(
-        `http://localhost:5000/api/checksheet/templates/${templateId}/submissions`
+        `${API_BASE_URL}/api/checksheet/templates/${templateId}/submissions`
       );
       if (response.data.success) {
         setTemplateSubmissions(response.data.submissions || []);
@@ -110,7 +113,7 @@ const Forms = () => {
     try {
       // Note: You'll need to create a DELETE endpoint in your API
       const response = await axios.delete(
-        `http://localhost:5000/api/checksheet/templates/${templateId}`
+        `${API_BASE_URL}/api/checksheet/templates/${templateId}`
       );
 
       if (response.data.success) {

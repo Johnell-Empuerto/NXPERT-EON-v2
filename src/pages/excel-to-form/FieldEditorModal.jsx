@@ -25,76 +25,62 @@ const FieldEditorModal = ({
   const [selectedFunction, setSelectedFunction] = useState("SUM"); // Default function
 
   // In FieldEditorModal.js - Update the useEffect
+  // In FieldEditorModal.js - Update the useEffect initialization
   useEffect(() => {
     if (field) {
       console.log("Editing field:", field);
       setType(field.type || "text");
       setLabel(field.label || "");
-
       const initialData = {};
       const fieldInfo = getFieldTypeInfo(field.type);
 
+      // Get all possible editor field names
+      const editorFieldNames = fieldInfo.editorFields.map((f) => f.name);
+
+      // Load ALL field properties, not just those in editorFields
+      Object.keys(field).forEach((key) => {
+        // Skip special keys
+        if (
+          [
+            "type",
+            "label",
+            "instanceId",
+            "fieldPosition",
+            "originalLabel",
+          ].includes(key)
+        ) {
+          return;
+        }
+
+        // Handle options specially
+        if (key === "options" && Array.isArray(field[key])) {
+          initialData[key] = field[key].join(",");
+        }
+        // Handle color fields
+        else if (key.includes("Color") || key.includes("color")) {
+          initialData[key] = field[key];
+        }
+        // Handle other fields
+        else {
+          initialData[key] = field[key];
+        }
+      });
+
+      // Ensure all required editor fields have values
       fieldInfo.editorFields.forEach((fieldConfig) => {
         const fieldName = fieldConfig.name;
-
-        if (fieldName === "options" && field.options) {
-          initialData.options = field.options.join(",");
-        } else if (
-          fieldName === "decimalPlaces" &&
-          field.decimalPlaces !== undefined
+        if (
+          initialData[fieldName] === undefined &&
+          fieldConfig.defaultValue !== undefined
         ) {
-          initialData.decimalPlaces = field.decimalPlaces;
-        }
-        // Handle checkbox fields
-        else if (fieldConfig.type === "checkbox") {
-          initialData[fieldName] =
-            field[fieldName] ?? fieldConfig.defaultValue ?? false;
-        }
-        // Handle formula field for calculation fields
-        else if (fieldName === "formula" && field.formula !== undefined) {
-          initialData.formula = field.formula;
-        }
-        // Handle color fields (NEW)
-        else if (
-          fieldConfig.type === "color" &&
-          field[fieldName] !== undefined
-        ) {
-          initialData[fieldName] = field[fieldName];
-        }
-        // Handle number fields (min, max, decimalPlaces)
-        else if (
-          fieldConfig.type === "number" &&
-          field[fieldName] !== undefined
-        ) {
-          initialData[fieldName] = field[fieldName];
-        }
-        // Handle text fields
-        else if (
-          fieldConfig.type === "text" &&
-          field[fieldName] !== undefined
-        ) {
-          initialData[fieldName] = field[fieldName];
-        }
-        // Handle select fields
-        else if (
-          fieldConfig.type === "select" &&
-          field[fieldName] !== undefined
-        ) {
-          initialData[fieldName] = field[fieldName];
-        }
-        // For any other fields, use the field value or default
-        else if (field[fieldName] !== undefined) {
-          initialData[fieldName] = field[fieldName];
-        } else if (fieldConfig.defaultValue !== undefined) {
           initialData[fieldName] = fieldConfig.defaultValue;
         }
       });
 
       console.log("Initial form data:", initialData);
       setFormData(initialData);
-      setValidationError(""); // Reset validation error
+      setValidationError("");
     } else {
-      // Reset when no field (new field?)
       setFormData({});
       setValidationError("");
     }
@@ -207,7 +193,25 @@ const FieldEditorModal = ({
       textColor: formData.textColor || "#000000",
       exactMatchText: formData.exactMatchText || "",
       exactMatchBgColor: formData.exactMatchBgColor || "#d4edda",
-      minLength: formData.minLength ? parseInt(formData.minLength, 10) : null,
+      // Text field settings
+      minLength:
+        (type === "text" || type === "textarea") && formData.minLength
+          ? parseInt(formData.minLength, 10)
+          : null,
+      maxLength:
+        (type === "text" || type === "textarea") && formData.maxLength
+          ? parseInt(formData.maxLength, 10)
+          : null,
+
+      // Number field settings
+      min:
+        (type === "number" || type === "calculation") && formData.min
+          ? parseFloat(formData.min)
+          : null,
+      max:
+        (type === "number" || type === "calculation") && formData.max
+          ? parseFloat(formData.max)
+          : null,
       minLengthMode: formData.minLengthMode || "warning",
       minLengthWarningBg: formData.minLengthWarningBg || "#ffebee",
       // existing ones...
@@ -230,7 +234,6 @@ const FieldEditorModal = ({
       borderColorInRange: formData.borderColorInRange || "#cccccc",
       borderColorBelowMin: formData.borderColorBelowMin || "#2196f3",
       borderColorAboveMax: formData.borderColorAboveMax || "#f44336",
-      maxLength: formData.maxLength ? parseInt(formData.maxLength, 10) : null,
       maxLengthMode: formData.maxLengthMode || "warning",
       maxLengthWarningBg: formData.maxLengthWarningBg || "#fff3cd",
     };

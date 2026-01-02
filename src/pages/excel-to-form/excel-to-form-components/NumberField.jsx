@@ -66,13 +66,29 @@ const NumberField = ({
     let isValidValue = true;
     let status = "inRange";
 
-    if (min !== null && num < min) {
+    // Only validate if we have a valid number
+    if (num === null || isNaN(num)) {
+      setIsValid(true);
+      setValidationStatus("inRange");
+      return;
+    }
+
+    // Convert min/max to numbers if they're not null/undefined
+    const minNum = min != null ? parseFloat(min) : null;
+    const maxNum = max != null ? parseFloat(max) : null;
+
+    // Only validate if the conversion was successful
+    if (minNum !== null && !isNaN(minNum) && num < minNum) {
       isValidValue = false;
       status = "belowMin";
-    } else if (max !== null && num > max) {
+    } else if (maxNum !== null && !isNaN(maxNum) && num > maxNum) {
       isValidValue = false;
       status = "aboveMax";
     }
+
+    console.log(
+      `Validation: num=${num}, min=${minNum}, max=${maxNum}, isValid=${isValidValue}, status=${status}`
+    ); // Debug log
 
     setIsValid(isValidValue);
     setValidationStatus(status);
@@ -147,18 +163,21 @@ const NumberField = ({
 
   // Get validation status text for indicator
   const getValidationIndicator = () => {
+    const minNum = min != null ? parseFloat(min) : null;
+    const maxNum = max != null ? parseFloat(max) : null;
+
     switch (validationStatus) {
       case "belowMin":
         return {
           symbol: "<",
           color: borderColorBelowMin,
-          title: `Below minimum (${min})`,
+          title: `Below minimum (${minNum})`,
         };
       case "aboveMax":
         return {
           symbol: ">",
           color: borderColorAboveMax,
-          title: `Above maximum (${max})`,
+          title: `Above maximum (${maxNum})`,
         };
       default:
         return null;
@@ -179,14 +198,16 @@ const NumberField = ({
     if (val === "" || val === "-" || regex.test(val)) {
       setDisplayValue(val);
 
-      const num = val === "" || val === "-" ? null : parseFloat(val);
+      const num =
+        val === "" || val === "-" || val === "." ? null : parseFloat(val);
 
-      if (val === "" || val === "-" || isNaN(num)) {
+      if (val === "" || val === "-" || val === "." || isNaN(num)) {
         onChange(name, null, "number", label);
         setIsValid(true);
         setValidationStatus("inRange");
       } else {
         onChange(name, num, "number", label);
+        // Validate immediately as user types
         validateNumber(num);
       }
     }
@@ -210,18 +231,23 @@ const NumberField = ({
       return;
     }
 
+    // Apply formatting
+    let finalValue;
     if (allowsDecimal) {
       const formatted = num.toFixed(decimalPlaces);
       setDisplayValue(formatted);
-      const finalNum = parseFloat(formatted);
-      onChange(name, finalNum, "number", label);
-      validateNumber(finalNum);
+      finalValue = parseFloat(formatted);
     } else {
       num = Math.round(num);
       setDisplayValue(num.toString());
-      onChange(name, num, "number", label);
-      validateNumber(num);
+      finalValue = num;
     }
+
+    // Send the final value
+    onChange(name, finalValue, "number", label);
+
+    // Validate after formatting
+    validateNumber(finalValue);
   };
 
   // Get comprehensive tooltip text
