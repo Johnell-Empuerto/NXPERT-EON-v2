@@ -31,6 +31,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   const [htmlContent, setHtmlContent] = useState(initialHtml);
   const [formData, setFormData] = useState({});
   const [fieldConfigs, setFieldConfigs] = useState({});
+  const [sheetFieldConfigs, setSheetFieldConfigs] = useState({}); // { sheetIndex: { fieldId: config } }
   const [fieldPositions, setFieldPositions] = useState({});
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState(null);
@@ -295,22 +296,20 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       .map(([label]) => label);
 
     if (duplicates.length > 0) {
-      // Show sweetalert and throw error
       swal({
         title: "⚠️ Duplicate Field Labels Detected",
         html: `<div style="text-align: left; font-size: 14px;">
-          <p>The following field labels appear multiple times:</p>
-          <ul style="margin-left: 20px;">${duplicates
-            .map((l) => `<li><strong>"${l}"</strong></li>`)
-            .join("")}</ul>
-          <p style="color: #d35400;">Please make each field label unique.</p>
-        </div>`,
+        <p>The following field labels appear multiple times:</p>
+        <ul style="margin-left: 20px;">${duplicates
+          .map((l) => `<li><strong>"${l}"</strong></li>`)
+          .join("")}</ul>
+        <p style="color: #d35400;">Please make each field label unique.</p>
+      </div>`,
         icon: "error",
         confirmButtonText: "OK",
         confirmButtonColor: "#dc3545",
       });
 
-      // Return error object instead of throwing
       return {
         configs: {},
         instances: [],
@@ -338,34 +337,62 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         sheetIndex + 1
       }`;
 
-      configs[instanceId] = {
-        originalType: type,
-        type,
-        label,
-        originalLabel: label,
-        options,
-        decimalPlaces,
-        originalHtml: fullMatch,
-        instanceId,
-        position,
-        isDuplicate: false,
-        sheetIndex,
-        bgColor: "#ffffff",
-        textColor: "#000000",
-        exactMatchText: "",
-        exactMatchBgColor: "#d4edda",
-        minLength: null,
-        minLengthMode: "warning",
-        minLengthWarningBg: "#ffebee",
-        maxLength: null,
-        maxLengthMode: "warning",
-        maxLengthWarningBg: "#fff3cd",
-      };
+      // CRITICAL: Check if we already have custom configs for this field
+      const existingConfig = sheetFieldConfigs[sheetIndex]?.[instanceId];
+
+      // If we have existing config, use it, otherwise create defaults
+      if (existingConfig) {
+        configs[instanceId] = {
+          ...existingConfig,
+          // Preserve original data
+          originalType: type,
+          originalLabel: label,
+          originalHtml: fullMatch,
+          instanceId,
+          position,
+          sheetIndex,
+          // Only set defaults if they don't exist
+          bgColor: existingConfig.bgColor || "#ffffff",
+          textColor: existingConfig.textColor || "#000000",
+          exactMatchText: existingConfig.exactMatchText || "",
+          exactMatchBgColor: existingConfig.exactMatchBgColor || "#d4edda",
+          minLength: existingConfig.minLength || null,
+          minLengthMode: existingConfig.minLengthMode || "warning",
+          minLengthWarningBg: existingConfig.minLengthWarningBg || "#ffebee",
+          maxLength: existingConfig.maxLength || null,
+          maxLengthMode: existingConfig.maxLengthMode || "warning",
+          maxLengthWarningBg: existingConfig.maxLengthWarningBg || "#fff3cd",
+        };
+      } else {
+        configs[instanceId] = {
+          originalType: type,
+          type,
+          label,
+          originalLabel: label,
+          options,
+          decimalPlaces,
+          originalHtml: fullMatch,
+          instanceId,
+          position,
+          isDuplicate: false,
+          sheetIndex,
+          bgColor: "#ffffff",
+          textColor: "#000000",
+          exactMatchText: "",
+          exactMatchBgColor: "#d4edda",
+          minLength: null,
+          minLengthMode: "warning",
+          minLengthWarningBg: "#ffebee",
+          maxLength: null,
+          maxLengthMode: "warning",
+          maxLengthWarningBg: "#fff3cd",
+        };
+      }
 
       instances.push({
         instanceId,
-        type,
-        label,
+        type: configs[instanceId].type,
+        label: configs[instanceId].label,
         originalLabel: label,
         position,
         matchIndex: index,
@@ -396,27 +423,57 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       const result = extractFieldConfigs(currentSheet.html, currentSheetIndex);
 
       if (result.error) {
-        // Handle duplicate error
         setError(result.error);
         return;
       }
 
-      setFieldConfigs(result.configs);
-      setFieldInstances(result.instances);
+      // Store configs per sheet instead of overwriting
+      setSheetFieldConfigs((prev) => ({
+        ...prev,
+        [currentSheetIndex]: result.configs,
+      }));
+
+      setFieldInstances((prevInstances) => {
+        // Merge new instances for this sheet
+        const existingInstances = prevInstances.filter(
+          (inst) => inst.sheetIndex !== currentSheetIndex
+        );
+        return [...existingInstances, ...result.instances];
+      });
+
       const positions = assignFieldPositions(result.instances);
-      setFieldPositions(positions);
+      setFieldPositions((prev) => ({
+        ...prev,
+        ...positions,
+      }));
     }
   }, [htmlContent, currentSheetIndex, sheets]);
 
+  // Add this helper function
+  const getCurrentFieldConfigs = () => {
+    return sheetFieldConfigs[currentSheetIndex] || {};
+  };
+
+  const getCurrentFieldInstances = () => {
+    return fieldInstances.filter(
+      (inst) => inst.sheetIndex === currentSheetIndex
+    );
+  };
+
   const getAllFieldsInfo = useMemo(() => {
     if (!Array.isArray(fieldInstances)) return [];
-    return fieldInstances.map((inst) => ({
-      position: inst.position,
-      type: fieldConfigs[inst.instanceId]?.type || inst.type,
-      label: inst.label,
-      instanceId: inst.instanceId,
-    }));
-  }, [fieldInstances, fieldConfigs]);
+
+    return fieldInstances.map((inst) => {
+      const configs = sheetFieldConfigs[inst.sheetIndex] || {};
+      return {
+        position: inst.position,
+        type: configs[inst.instanceId]?.type || inst.type,
+        label: inst.label,
+        instanceId: inst.instanceId,
+        sheetIndex: inst.sheetIndex,
+      };
+    });
+  }, [fieldInstances, sheetFieldConfigs]);
 
   const createFieldValueMap = useMemo(() => {
     const map = {};
@@ -483,6 +540,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   };
 
   // === NEW: Multi-sheet ZIP handling ===
+  // === NEW: Multi-sheet ZIP handling ===
   const handleZipUpload = async (file) => {
     const zip = await JSZip.loadAsync(file);
     const files = Object.values(zip.files).filter((f) => !f.dir);
@@ -530,6 +588,10 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
 
     // 2. Collect <style> from EVERY sheet
     const loadedSheets = [];
+    let allFieldLabels = {};
+    let hasDuplicates = false;
+    let duplicateLabels = [];
+
     for (let i = 0; i < sheetFiles.length; i++) {
       const sheetFile = sheetFiles[i];
       let html = await sheetFile.async("text");
@@ -558,6 +620,32 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       // Clean body HTML
       html = doc.body ? doc.body.innerHTML : html;
 
+      // === CHECK FOR DUPLICATE LABELS ACROSS ALL SHEETS ===
+      const regex = /\{\{(\w+):([^:}]+)(?::(\d+))?(?::([^}]+))?\}\}/g;
+      const matches = [...html.matchAll(regex)];
+
+      matches.forEach((match) => {
+        const [, , rawLabel] = match;
+        let label = rawLabel.trim();
+        label = label.replace(/<\/?[^>]+(>|$)/g, "").trim();
+        const bracketIndex = label.indexOf("<");
+        if (bracketIndex > -1) label = label.substring(0, bracketIndex).trim();
+        label = label.replace(/&[a-z]+;/g, "").trim();
+
+        if (allFieldLabels[label]) {
+          if (!duplicateLabels.includes(label)) {
+            duplicateLabels.push(label);
+          }
+          allFieldLabels[label].count += 1;
+          allFieldLabels[label].sheets.push(i + 1);
+        } else {
+          allFieldLabels[label] = {
+            count: 1,
+            sheets: [i + 1],
+          };
+        }
+      });
+
       loadedSheets.push({
         id: sheetFile.name,
         name: sheetNames[i] || `Sheet ${i + 1}`,
@@ -567,23 +655,142 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       });
     }
 
-    // === INJECT ALL COLLECTED CSS ONCE ===
-    injectExcelCSS(allCss);
+    // Check for cross-sheet duplicates
+    const crossSheetDuplicates = duplicateLabels.filter(
+      (label) => allFieldLabels[label].sheets.length > 1
+    );
 
-    // === PROCESS IMAGES ===
-    const imageMap = await extractImages(zip);
-    setImages(imageMap);
+    if (crossSheetDuplicates.length > 0) {
+      swal({
+        title: "⚠️ Duplicate Field Labels Across Sheets Detected",
+        html: `<div style="text-align: left; font-size: 14px;">
+      <p>The following field labels appear in multiple sheets:</p>
+      <ul style="margin-left: 20px; margin-bottom: 15px;">
+        ${crossSheetDuplicates
+          .map(
+            (label) =>
+              `<li><strong>"${label}"</strong> - Sheets: ${allFieldLabels[
+                label
+              ].sheets.join(", ")}</li>`
+          )
+          .join("")}
+      </ul>
+      <p style="color: #d35400; font-weight: bold;">
+        ⚠️ Fields with the same name in different sheets will share the same value.
+      </p>
+      <p style="color: #666; margin-top: 10px;">
+        If this is intended (same field appearing on multiple sheets), click "Continue".<br>
+        If not, click "Cancel" and edit your Excel file to make field labels unique.
+      </p>
+    </div>`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Continue Anyway",
+        cancelButtonText: "Cancel Upload",
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#d33",
+      }).then((result) => {
+        if (!result.isConfirmed) {
+          setIsUploading(false);
+          fileInputRef.current.value = "";
+          return;
+        }
+        continueWithCssInjection();
+      });
 
-    // Create processed sheets with blob URLs for display
-    const processedSheets = loadedSheets.map((sheet) => ({
-      ...sheet,
-      html: rewriteImageUrls(sheet.html, imageMap), // HTML with blob URLs for display
-    }));
+      function continueWithCssInjection() {
+        injectExcelCSS(allCss);
 
-    setSheets(processedSheets);
-    setSheetStates(Array(processedSheets.length).fill(null));
-    setCurrentSheetIndex(0);
-    setHtmlContent(processedSheets[0]?.html || "");
+        extractImages(zip)
+          .then((imageMap) => {
+            setImages(imageMap);
+
+            const processedSheets = loadedSheets.map((sheet) => ({
+              ...sheet,
+              html: rewriteImageUrls(sheet.html, imageMap),
+            }));
+
+            setSheets(processedSheets);
+            setSheetStates(Array(processedSheets.length).fill(null));
+            setCurrentSheetIndex(0);
+            setHtmlContent(processedSheets[0]?.html || "");
+            setIsUploading(false);
+
+            // CRITICAL: Extract field configs from ALL sheets immediately
+            setTimeout(() => {
+              const initialConfigs = {};
+              const allInstances = [];
+
+              processedSheets.forEach((sheet, index) => {
+                const result = extractFieldConfigs(sheet.html, index);
+                if (result.configs && !result.error) {
+                  initialConfigs[index] = result.configs;
+                  allInstances.push(...result.instances);
+                }
+              });
+
+              setSheetFieldConfigs(initialConfigs);
+              setFieldInstances(allInstances);
+
+              // Initialize form data for all fields
+              const initialFormData = {};
+              Object.values(initialConfigs).forEach((sheetConfig) => {
+                Object.keys(sheetConfig).forEach((fieldId) => {
+                  initialFormData[fieldId] = "";
+                });
+              });
+              setFormData(initialFormData);
+            }, 0);
+          })
+          .catch((err) => {
+            console.error("Error processing images:", err);
+            setError("Error processing images: " + err.message);
+            setIsUploading(false);
+          });
+      }
+    } else {
+      injectExcelCSS(allCss);
+
+      const imageMap = await extractImages(zip);
+      setImages(imageMap);
+
+      const processedSheets = loadedSheets.map((sheet) => ({
+        ...sheet,
+        html: rewriteImageUrls(sheet.html, imageMap),
+      }));
+
+      setSheets(processedSheets);
+      setSheetStates(Array(processedSheets.length).fill(null));
+      setCurrentSheetIndex(0);
+      setHtmlContent(processedSheets[0]?.html || "");
+      setIsUploading(false);
+
+      // CRITICAL: Extract field configs from ALL sheets immediately
+      setTimeout(() => {
+        const initialConfigs = {};
+        const allInstances = [];
+
+        processedSheets.forEach((sheet, index) => {
+          const result = extractFieldConfigs(sheet.html, index);
+          if (result.configs && !result.error) {
+            initialConfigs[index] = result.configs;
+            allInstances.push(...result.instances);
+          }
+        });
+
+        setSheetFieldConfigs(initialConfigs);
+        setFieldInstances(allInstances);
+
+        // Initialize form data for all fields
+        const initialFormData = {};
+        Object.values(initialConfigs).forEach((sheetConfig) => {
+          Object.keys(sheetConfig).forEach((fieldId) => {
+            initialFormData[fieldId] = "";
+          });
+        });
+        setFormData(initialFormData);
+      }, 0);
+    }
   };
 
   const handleHtmlUpload = async (file) => {
@@ -594,18 +801,14 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       // === NEW: TRIM HTML AT {{END}} ===
       const endMarkerIndex = content.indexOf("{{END}}");
       if (endMarkerIndex !== -1) {
-        // Find the end of the current table row containing {{END}}
         const contentBeforeEnd = content.substring(0, endMarkerIndex);
 
-        // Find the closing </tr> tag after {{END}}
         const afterEnd = content.substring(endMarkerIndex);
         const trCloseIndex = afterEnd.indexOf("</tr>");
 
         if (trCloseIndex !== -1) {
-          // Remove everything from the start of the row containing {{END}}
           const lastTrOpenIndex = contentBeforeEnd.lastIndexOf("<tr");
           if (lastTrOpenIndex !== -1) {
-            // Keep everything up to this <tr> opening tag
             content = content.substring(0, lastTrOpenIndex);
           }
         }
@@ -704,38 +907,23 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
   };
 
   const handleSaveFieldConfig = (updatedField) => {
-    const { instanceId } = updatedField;
-    setFieldConfigs((prev) => ({
-      ...prev,
-      [instanceId]: {
-        ...prev[instanceId],
-        type: updatedField.type,
-        label: updatedField.label,
-        options: updatedField.options,
-        decimalPlaces: updatedField.decimalPlaces,
-        multiline: updatedField.multiline,
-        autoShrinkFont: updatedField.autoShrinkFont,
-        formula: updatedField.formula,
-        min: updatedField.min,
-        max: updatedField.max,
-        bgColorInRange: updatedField.bgColorInRange,
-        bgColorBelowMin: updatedField.bgColorBelowMin,
-        bgColorAboveMax: updatedField.bgColorAboveMax,
-        borderColorInRange: updatedField.borderColorInRange,
-        borderColorBelowMin: updatedField.borderColorBelowMin,
-        borderColorAboveMax: updatedField.borderColorAboveMax,
-        bgColor: updatedField.bgColor || "#ffffff",
-        textColor: updatedField.textColor || "#000000",
-        exactMatchText: updatedField.exactMatchText || "",
-        exactMatchBgColor: updatedField.exactMatchBgColor || "#d4edda",
-        minLength: updatedField.minLength || null,
-        minLengthMode: updatedField.minLengthMode || "warning",
-        minLengthWarningBg: updatedField.minLengthWarningBg || "#ffebee",
-        maxLength: updatedField.maxLength || null,
-        maxLengthMode: updatedField.maxLengthMode || "warning",
-        maxLengthWarningBg: updatedField.maxLengthWarningBg || "#fff3cd",
-      },
-    }));
+    const { instanceId, sheetIndex = currentSheetIndex } = updatedField;
+
+    setSheetFieldConfigs((prev) => {
+      const currentSheetConfigs = prev[sheetIndex] || {};
+
+      return {
+        ...prev,
+        [sheetIndex]: {
+          ...currentSheetConfigs,
+          [instanceId]: {
+            ...currentSheetConfigs[instanceId], // Preserve existing properties
+            ...updatedField, // Apply all updated field properties
+            sheetIndex: sheetIndex, // Ensure sheet index is stored
+          },
+        },
+      };
+    });
   };
 
   const parseOptions = {
@@ -752,6 +940,9 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       let lastIndex = 0;
       const renderedInstances = new Set();
 
+      // Get current sheet's instances
+      const currentSheetInstances = getCurrentFieldInstances();
+
       matches.forEach((match) => {
         const [fullMatch, rawType, rawLabel] = match;
         const type = rawType.toLowerCase();
@@ -762,10 +953,8 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
           cleanLabel = cleanLabel.substring(0, bracketIndex).trim();
         cleanLabel = cleanLabel.replace(/&[a-z]+;/g, "").trim();
 
-        const possibleInstances = fieldInstances.filter(
-          (inst) =>
-            inst.originalLabel === cleanLabel &&
-            inst.sheetIndex === currentSheetIndex
+        const possibleInstances = currentSheetInstances.filter(
+          (inst) => inst.originalLabel === cleanLabel
         );
 
         if (!possibleInstances.length) return;
@@ -777,7 +966,10 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
 
         renderedInstances.add(instance.instanceId);
         const { instanceId: fieldId, position } = instance;
-        const config = fieldConfigs[fieldId] || {};
+
+        // Get config from current sheet
+        const currentConfigs = getCurrentFieldConfigs();
+        const config = currentConfigs[fieldId] || {};
 
         if (match.index > lastIndex) {
           parts.push(text.substring(lastIndex, match.index));
@@ -826,6 +1018,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
                 instanceId: fieldId,
                 fieldPosition: position,
                 originalLabel: instance.originalLabel,
+                sheetIndex: currentSheetIndex, // Add sheet index
               })
             }
           />
@@ -850,8 +1043,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     sheets,
     fieldInstances,
   ]);
-
-  // In your ExcelChecksheet.js, update the handlePublish function:
 
   const handlePublish = async () => {
     console.log("=== PUBLISH BUTTON CLICKED ===");
@@ -880,38 +1071,79 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
 
     try {
       /* ===============================
-       1. COLLECT FIELD CONFIGS
+       1. EXTRACT FIELD CONFIGS FROM ALL SHEETS (CRITICAL FIX)
     =============================== */
-      console.log("Step 1: Collecting field configs...");
+      console.log("Step 1: Extracting field configs from ALL sheets...");
       const allConfigs = {};
+      const allInstances = [];
       const allPositions = {};
       let hasFields = false;
 
+      // Extract field configs from EVERY sheet, regardless of whether user visited them
       for (let i = 0; i < sheets.length; i++) {
-        console.log(`Processing sheet ${i}: ${sheets[i].name}`);
-        const result = extractFieldConfigs(sheets[i].originalHtml, i);
+        const sheet = sheets[i];
+        console.log(`Processing sheet ${i}: ${sheet.name}`);
+
+        // Use the ORIGINAL HTML to extract fields (contains {{field:label}} patterns)
+        const sheetHtml = sheet.originalHtml || sheet.html;
+
+        if (!sheetHtml) {
+          console.warn(`Sheet ${i} has no HTML content`);
+          continue;
+        }
+
+        // Extract field configs from this sheet
+        const result = extractFieldConfigs(sheetHtml, i);
 
         if (result.error) {
-          console.log(`ERROR in sheet ${i}:`, result.error);
-          alert(`Error in sheet "${sheets[i].name}": ${result.error}`);
-          return;
+          console.error(`Error in sheet ${i}:`, result.error);
+          // Don't stop publishing, just skip this sheet
+          continue;
         }
 
         if (Object.keys(result.configs).length > 0) {
           hasFields = true;
+
+          // Merge configs
           Object.assign(allConfigs, result.configs);
-          Object.assign(allPositions, assignFieldPositions(result.instances));
+
+          // Merge instances
+          allInstances.push(...result.instances);
+
+          // Merge positions
+          const positions = assignFieldPositions(result.instances);
+          Object.assign(allPositions, positions);
+
+          console.log(
+            `Sheet ${i}: Found ${Object.keys(result.configs).length} fields`
+          );
+        } else {
+          console.log(`Sheet ${i}: No fields found`);
         }
       }
 
-      console.log("Field configs collected:", Object.keys(allConfigs).length);
-      console.log(
-        "Field positions collected:",
-        Object.keys(allPositions).length
+      // ALSO merge any custom configurations from sheetFieldConfigs
+      Object.entries(sheetFieldConfigs).forEach(
+        ([sheetIndexStr, sheetConfigs]) => {
+          const sheetIndex = parseInt(sheetIndexStr);
+          if (sheetConfigs) {
+            Object.entries(sheetConfigs).forEach(([instanceId, config]) => {
+              // Update existing config or add new one
+              allConfigs[instanceId] = {
+                ...(allConfigs[instanceId] || {}),
+                ...config,
+                sheetIndex: sheetIndex,
+              };
+            });
+          }
+        }
       );
 
+      console.log("Total field configs:", Object.keys(allConfigs).length);
+      console.log("Total instances:", allInstances.length);
+
       if (!hasFields) {
-        console.warn("WARNING: No form fields detected in HTML!");
+        console.warn("WARNING: No form fields detected!");
         const userConfirmation = window.confirm(
           "No form fields ({{field:label}} patterns) were found in your document. " +
             "Do you want to publish it as a form template without fields?"
@@ -923,10 +1155,9 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         }
       }
 
-      const finalConfigs = { ...allConfigs, ...fieldConfigs };
-
+      // Clean the configs
       const cleanedConfigs = {};
-      Object.entries(finalConfigs).forEach(([key, config]) => {
+      Object.entries(allConfigs).forEach(([key, config]) => {
         let cleanLabel = (config.label || "")
           .replace(/<\/?[^>]+>/g, "")
           .replace(/&[a-z]+;/gi, "")
@@ -1105,7 +1336,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
       const filledValues = Object.fromEntries(
         Object.entries(formData)
           .filter(([_, v]) => {
-            // v could be an object {value, type, label} or just a string
             const value = v?.value !== undefined ? v.value : v;
             return (
               value !== null &&
@@ -1115,7 +1345,6 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
             );
           })
           .map(([k, v]) => {
-            // Extract value from object or use v directly
             const value = v?.value !== undefined ? v.value : v;
             return [k, value];
           })
@@ -1142,6 +1371,10 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
         })),
         last_updated: new Date().toISOString(),
       };
+
+      console.log("=== PAYLOAD SUMMARY ===");
+      console.log("Sheets:", sheets.length);
+      console.log("Fields:", Object.keys(cleanedConfigs).length);
 
       const publishBtn = document.querySelector(".primary-btn");
       const originalText = publishBtn?.textContent || "Publish Form";
