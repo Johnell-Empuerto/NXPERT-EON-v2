@@ -906,8 +906,11 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
     }));
   };
 
+  // In ExcelChecksheet.js - Update the handleSaveFieldConfig function
   const handleSaveFieldConfig = (updatedField) => {
     const { instanceId, sheetIndex = currentSheetIndex } = updatedField;
+
+    console.log("Saving field config:", updatedField); // Debug log
 
     setSheetFieldConfigs((prev) => {
       const currentSheetConfigs = prev[sheetIndex] || {};
@@ -918,11 +921,57 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
           ...currentSheetConfigs,
           [instanceId]: {
             ...currentSheetConfigs[instanceId], // Preserve existing properties
-            ...updatedField, // Apply all updated field properties
-            sheetIndex: sheetIndex, // Ensure sheet index is stored
+            ...updatedField, // Apply ALL updated field properties
+
+            // Make sure these critical properties are preserved
+            instanceId: instanceId,
+            sheetIndex: sheetIndex,
+
+            // Ensure date format properties are saved
+            dateFormat: updatedField.dateFormat || "yyyy-MMMM-dd",
+            showTimeSelect: updatedField.showTimeSelect || false,
+            timeFormat: updatedField.timeFormat || "HH:mm",
+            minDate: updatedField.minDate || "",
+            maxDate: updatedField.maxDate || "",
+
+            // Make sure these are preserved too
+            decimalPlaces: updatedField.decimalPlaces,
+            decimal_places: updatedField.decimal_places,
+            bgColor: updatedField.bgColor || "#ffffff",
+            textColor: updatedField.textColor || "#000000",
+            exactMatchText: updatedField.exactMatchText || "",
+            exactMatchBgColor: updatedField.exactMatchBgColor || "#d4edda",
+            minLength: updatedField.minLength || null,
+            minLengthMode: updatedField.minLengthMode || "warning",
+            minLengthWarningBg: updatedField.minLengthWarningBg || "#ffebee",
+            maxLength: updatedField.maxLength || null,
+            maxLengthMode: updatedField.maxLengthMode || "warning",
+            maxLengthWarningBg: updatedField.maxLengthWarningBg || "#fff3cd",
+            multiline: updatedField.multiline || false,
+            autoShrinkFont: updatedField.autoShrinkFont !== false,
+            min: updatedField.min || null,
+            max: updatedField.max || null,
+            formula: updatedField.formula || "",
+            position: updatedField.position || "",
+            field_name: updatedField.field_name || instanceId,
+            options: updatedField.options || [],
           },
         },
       };
+    });
+
+    // Also update fieldInstances if needed
+    setFieldInstances((prev) => {
+      return prev.map((inst) => {
+        if (inst.instanceId === instanceId && inst.sheetIndex === sheetIndex) {
+          return {
+            ...inst,
+            type: updatedField.type || inst.type,
+            label: updatedField.label || inst.label,
+          };
+        }
+        return inst;
+      });
     });
   };
 
@@ -1012,6 +1061,11 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
             maxLength={config.maxLength}
             maxLengthMode={config.maxLengthMode}
             maxLengthWarningBg={config.maxLengthWarningBg}
+            dateFormat={config.dateFormat || "yyyy-MMMM-dd"}
+            showTimeSelect={config.showTimeSelect || false}
+            timeFormat={config.timeFormat || "HH:mm"}
+            minDate={config.minDate || ""}
+            maxDate={config.maxDate || ""}
             onEditField={() =>
               setEditingField({
                 ...config,
@@ -1189,6 +1243,11 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
           instanceId: config.instanceId || key,
           sheetIndex: config.sheetIndex || 0,
           field_name: config.field_name || key,
+          dateFormat: config.dateFormat || "yyyy-MMMM-dd",
+          showTimeSelect: config.showTimeSelect || false,
+          timeFormat: config.timeFormat || "HH:mm",
+          minDate: config.minDate || "",
+          maxDate: config.maxDate || "",
 
           // FIX: Make sure decimalPlaces is included
           decimalPlaces:

@@ -272,8 +272,8 @@ router.post("/templates", async (req, res) => {
            multiline, auto_shrink_font,
            min_value, max_value, bg_color_in_range, bg_color_below_min, 
            bg_color_above_max, border_color_in_range, border_color_below_min, 
-           border_color_above_max, formula, position, instance_id, sheet_index)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
+           border_color_above_max, formula, position, instance_id, sheet_index, date_format, show_time_select, time_format, min_date, max_date)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35)
           `,
           [
             templateId,
@@ -306,6 +306,11 @@ router.post("/templates", async (req, res) => {
             config.position || "",
             config.instanceId || fieldId,
             config.sheetIndex || 0,
+            config.dateFormat || "yyyy-MMMM-dd",
+            config.showTimeSelect || false,
+            config.timeFormat || "HH:mm",
+            config.minDate || null,
+            config.maxDate || null,
           ]
         );
       }
@@ -529,7 +534,8 @@ router.get("/templates/:id", async (req, res) => {
         multiline, auto_shrink_font,
         min_value, max_value, bg_color_in_range, bg_color_below_min, 
         bg_color_above_max, border_color_in_range, border_color_below_min, 
-        border_color_above_max, formula, position, instance_id, sheet_index
+        border_color_above_max, formula, position, instance_id, sheet_index,
+        date_format, show_time_select, time_format, min_date, max_date
       FROM template_fields 
       WHERE template_id = $1 
       ORDER BY id
@@ -628,6 +634,11 @@ router.get("/templates/:id", async (req, res) => {
         position: field.position,
         instance_id: field.instance_id,
         sheet_index: field.sheet_index,
+        date_format: field.date_format,
+        show_time_select: field.show_time_select,
+        time_format: field.time_format,
+        min_date: field.min_date,
+        max_date: field.max_date,
       };
 
       return processedField;

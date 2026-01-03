@@ -199,6 +199,19 @@
   min-height: 60px;
 }
 
+.react-datepicker-wrapper {
+  display: inline-block;
+  padding: 0;
+  border: 0;
+  width: 100%;
+}
+
+.react-datepicker__time-container {
+  float: right;
+  border-left: 1px solid #aeaeae;
+  width: 100%;
+}
+
 .form-field-wrapper input[type="checkbox"] {
   width: 18px;
   height: 18px;

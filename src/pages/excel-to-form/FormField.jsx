@@ -38,6 +38,11 @@ const FormField = ({
   maxLength = null,
   maxLengthMode = "warning",
   maxLengthWarningBg = "#fff3cd",
+  dateFormat = "yyyy-MMMM-dd",
+  showTimeSelect = false,
+  timeFormat = "HH:mm",
+  minDate,
+  maxDate,
 }) => {
   const [height, setHeight] = useState(38);
   const minHeight = 28;
@@ -56,6 +61,21 @@ const FormField = ({
 
     // Add field reference
     tips.push(`<strong>Reference:</strong> ${fieldPosition}`);
+
+    if (type === "date") {
+      if (dateFormat) {
+        tips.push(`<strong>Format:</strong> ${dateFormat}`);
+      }
+      if (showTimeSelect && timeFormat) {
+        tips.push(`<strong>Time Format:</strong> ${timeFormat}`);
+      }
+      if (minDate) {
+        tips.push(`<strong>Earliest:</strong> ${minDate}`);
+      }
+      if (maxDate) {
+        tips.push(`<strong>Latest:</strong> ${maxDate}`);
+      }
+    }
 
     // Add type-specific info
     if (type === "calculation" && formula) {
@@ -217,6 +237,11 @@ const FormField = ({
             maxLength={maxLength}
             maxLengthMode={maxLengthMode}
             maxLengthWarningBg={maxLengthWarningBg}
+            dateFormat={dateFormat}
+            showTimeSelect={showTimeSelect}
+            timeFormat={timeFormat}
+            minDate={minDate}
+            maxDate={maxDate}
           />
           {fieldInfo.supportsHeight && (
             <div className="resize-handle">

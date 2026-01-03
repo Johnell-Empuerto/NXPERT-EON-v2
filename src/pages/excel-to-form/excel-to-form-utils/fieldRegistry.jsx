@@ -183,6 +183,7 @@ export const fieldRegistry = {
       },
     ],
   },
+  // fieldRegistry.js - Update the date entry
   date: {
     label: "Date",
     component: DateField,
@@ -194,6 +195,54 @@ export const fieldRegistry = {
         type: "text",
         label: "Field Label",
         required: true,
+      },
+      // NEW: Date format selection
+      {
+        name: "dateFormat",
+        type: "select",
+        label: "Date Format",
+        options: [
+          { value: "yyyy-MMMM-dd", label: "2026-January-03 (Full)" },
+          { value: "yyyy-MM-dd", label: "2026-01-03 (ISO)" },
+          { value: "dd/MM/yyyy", label: "03/01/2026 (European)" },
+          { value: "MM/dd/yyyy", label: "01/03/2026 (US)" },
+          { value: "MMMM d, yyyy", label: "January 3, 2026 (Long)" },
+          { value: "dd-MMM-yy", label: "03-Jan-26 (Short)" },
+          { value: "yyyy/MM/dd", label: "2026/01/03 (Slash)" },
+          { value: "dd MMM yyyy", label: "03 Jan 2026 (Medium)" },
+        ],
+        defaultValue: "yyyy-MMMM-dd",
+      },
+      // Optional: Show time picker
+      {
+        name: "showTimeSelect",
+        type: "checkbox",
+        label: "Include Time Selection",
+        defaultValue: false,
+      },
+      {
+        name: "timeFormat",
+        type: "select",
+        label: "Time Format",
+        options: [
+          { value: "HH:mm", label: "24-hour (14:30)" },
+          { value: "hh:mm aa", label: "12-hour (02:30 PM)" },
+        ],
+        defaultValue: "HH:mm",
+        condition: (formData) => formData.showTimeSelect, // Only show if showTimeSelect is true
+      },
+      // Optional: Min/Max date validation
+      {
+        name: "minDate",
+        type: "text",
+        label: "Minimum Date (YYYY-MM-DD)",
+        placeholder: "Leave empty for no minimum",
+      },
+      {
+        name: "maxDate",
+        type: "text",
+        label: "Maximum Date (YYYY-MM-DD)",
+        placeholder: "Leave empty for no maximum",
       },
     ],
   },

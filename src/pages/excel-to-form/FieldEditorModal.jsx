@@ -173,14 +173,17 @@ const FieldEditorModal = ({
   // In FieldEditorModal.js - Update handleSave function
   const handleSave = () => {
     // Validate min/max before saving
-    const minValue =
-      formData.min !== undefined ? parseFloat(formData.min) : null;
-    const maxValue =
-      formData.max !== undefined ? parseFloat(formData.max) : null;
+    const minDate = formData.minDate;
+    const maxDate = formData.maxDate;
 
-    if (!isNaN(minValue) && !isNaN(maxValue) && minValue > maxValue) {
-      setValidationError("Minimum value cannot be greater than maximum value");
-      return; // Don't save if validation fails
+    if (minDate && maxDate) {
+      const minDateObj = new Date(minDate);
+      const maxDateObj = new Date(maxDate);
+
+      if (minDateObj > maxDateObj) {
+        setValidationError("Minimum date cannot be after maximum date");
+        return;
+      }
     }
 
     const updatedField = {
@@ -189,6 +192,13 @@ const FieldEditorModal = ({
       label,
       multiline: !!formData.multiline,
       autoShrinkFont: formData.autoShrinkFont !== false,
+
+      // Date field specific settings
+      dateFormat: formData.dateFormat || "yyyy-MMMM-dd",
+      showTimeSelect: !!formData.showTimeSelect,
+      timeFormat: formData.timeFormat || "HH:mm",
+      minDate: formData.minDate || "",
+      maxDate: formData.maxDate || "",
 
       // FIX: Make sure decimalPlaces is ALWAYS included for number fields
       decimalPlaces:
@@ -376,6 +386,22 @@ const FieldEditorModal = ({
               </div>
             </div>
           </div>
+        );
+
+      case "select": // NEW: Handle select type
+        return (
+          <select
+            value={value}
+            onChange={(e) => handleFormChange(key, e.target.value)}
+            className="form-select"
+            required={fieldConfig.required}
+          >
+            {fieldConfig.options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         );
       default:
         return null;

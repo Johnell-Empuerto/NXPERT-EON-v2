@@ -7,6 +7,7 @@ import Tooltip from "../excel-to-form/tools/Tooltip";
 import CalculationField from "../excel-to-form/excel-to-form-components/CalculationField";
 import NumberField from "../excel-to-form/excel-to-form-components/NumberField"; // Add this import
 import API_BASE_URL from "../../config/api";
+import DateField from "../excel-to-form/excel-to-form-components/DateField";
 
 const FormFiller = () => {
   const { templateId } = useParams();
@@ -883,6 +884,12 @@ const FormFiller = () => {
       position: fieldPosition = "",
       formula, // This should come from fieldConfig if available
       required, // Add this if needed
+      // NEW: Extract date format props from database
+      date_format: dateFormat = "yyyy-MMMM-dd",
+      show_time_select: showTimeSelect = false,
+      time_format: timeFormat = "HH:mm",
+      min_date: minDate,
+      max_date: maxDate,
     } = fieldConfig;
 
     const getBackgroundColor = (val) => {
@@ -1107,7 +1114,21 @@ const FormFiller = () => {
         return renderFieldWithTooltip(numberField);
 
       case "date":
-        const dateField = <input type="date" {...commonProps} />;
+        const dateField = (
+          <DateField
+            label={label}
+            name={fieldName}
+            value={value || ""} // ISO string like "2026-01-03"
+            onChange={(name, dateString) => handleFieldChange(name, dateString)}
+            height={38}
+            // PASS THE DATE FORMAT PROPS FROM DATABASE
+            dateFormat={dateFormat || "yyyy-MMMM-dd"}
+            showTimeSelect={showTimeSelect || false}
+            timeFormat={timeFormat || "HH:mm"}
+            minDate={minDate || ""}
+            maxDate={maxDate || ""}
+          />
+        );
         return renderFieldWithTooltip(dateField);
 
       case "checkbox":
