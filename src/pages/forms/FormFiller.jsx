@@ -5,6 +5,7 @@ import axios from "axios";
 import "./FormFiller.css";
 import Tooltip from "../excel-to-form/tools/Tooltip";
 import CalculationField from "../excel-to-form/excel-to-form-components/CalculationField";
+import NumberField from "../excel-to-form/excel-to-form-components/NumberField"; // Add this import
 import API_BASE_URL from "../../config/api";
 
 const FormFiller = () => {
@@ -673,7 +674,8 @@ const FormFiller = () => {
   const handleFieldChange = (fieldName, value) => {
     setFormData((prev) => ({
       ...prev,
-      [fieldName]: value,
+      // Always store as string (or null) so NumberField can control formatting
+      [fieldName]: value === null || value === undefined ? "" : String(value),
     }));
   };
 
@@ -1078,15 +1080,28 @@ const FormFiller = () => {
         return renderFieldWithTooltip(textField);
 
       case "number":
+        console.log("Number field config:", {
+          fieldName,
+          decimalPlaces,
+          value,
+          fieldConfig,
+        });
+
         const numberField = (
-          <input
-            type="number"
-            {...commonProps}
-            step={
-              decimalPlaces > 0 ? `0.${"1".padStart(decimalPlaces, "0")}` : "1"
-            }
+          <NumberField
+            label={label}
+            name={fieldName}
+            value={value || null}
+            onChange={(name, val) => handleFieldChange(name, val)}
+            decimalPlaces={decimalPlaces}
             min={min}
             max={max}
+            bgColorInRange={bgColorInRange || bg_color}
+            bgColorBelowMin={bgColorBelowMin}
+            bgColorAboveMax={bgColorAboveMax}
+            borderColorInRange={borderColorInRange}
+            borderColorBelowMin={borderColorBelowMin}
+            borderColorAboveMax={borderColorAboveMax}
           />
         );
         return renderFieldWithTooltip(numberField);

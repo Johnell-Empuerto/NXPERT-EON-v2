@@ -1189,6 +1189,22 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
           instanceId: config.instanceId || key,
           sheetIndex: config.sheetIndex || 0,
           field_name: config.field_name || key,
+
+          // FIX: Make sure decimalPlaces is included
+          decimalPlaces:
+            config.decimalPlaces !== undefined
+              ? config.decimalPlaces
+              : config.type === "number" || config.type === "calculation"
+              ? 0
+              : undefined,
+
+          // Also include for database column mapping
+          decimal_places:
+            config.decimalPlaces !== undefined
+              ? config.decimalPlaces
+              : config.type === "number" || config.type === "calculation"
+              ? 0
+              : null,
         };
       });
 
@@ -1530,11 +1546,8 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
                   Choose <strong>Web Page (*.htm, *.html)</strong>
                 </li>
                 <li>
-                  <strong>Option A:</strong> Save as "Single File Web Page" →
-                  upload the .html file
-                  <br />
-                  <strong>Option B:</strong> Save as "Web Page" → creates folder
-                  → compress to ZIP → upload .zip
+                  Save as "Web Page" → creates folder → compress to ZIP → upload
+                  .zip
                 </li>
               </ol>
             </div>

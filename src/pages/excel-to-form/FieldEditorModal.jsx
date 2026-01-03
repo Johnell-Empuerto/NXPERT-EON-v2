@@ -170,6 +170,7 @@ const FieldEditorModal = ({
 
   // Updated handleSave function with validation
   // In FieldEditorModal.js - Update handleSave function
+  // In FieldEditorModal.js - Update handleSave function
   const handleSave = () => {
     // Validate min/max before saving
     const minValue =
@@ -188,11 +189,22 @@ const FieldEditorModal = ({
       label,
       multiline: !!formData.multiline,
       autoShrinkFont: formData.autoShrinkFont !== false,
+
+      // FIX: Make sure decimalPlaces is ALWAYS included for number fields
+      decimalPlaces:
+        (type === "number" || type === "calculation") &&
+        formData.decimalPlaces !== undefined
+          ? parseInt(formData.decimalPlaces, 10)
+          : type === "number" || type === "calculation"
+          ? 0
+          : undefined,
+
       // NEW TEXT FIELD SETTINGS
       bgColor: formData.bgColor || "#ffffff",
       textColor: formData.textColor || "#000000",
       exactMatchText: formData.exactMatchText || "",
       exactMatchBgColor: formData.exactMatchBgColor || "#d4edda",
+
       // Text field settings
       minLength:
         (type === "text" || type === "textarea") && formData.minLength
@@ -212,22 +224,28 @@ const FieldEditorModal = ({
         (type === "number" || type === "calculation") && formData.max
           ? parseFloat(formData.max)
           : null,
+
       minLengthMode: formData.minLengthMode || "warning",
       minLengthWarningBg: formData.minLengthWarningBg || "#ffebee",
-      // existing ones...
+
+      // Options for dropdown
       options: formData.options
         ? formData.options
             .split(",")
             .map((opt) => opt.trim())
             .filter(Boolean)
         : [],
-      decimalPlaces:
-        type === "number" || type === "calculation"
-          ? parseInt(formData.decimalPlaces, 10) || 0
-          : undefined,
+
+      // FIX: Also include decimal_places for database compatibility
+      decimal_places:
+        (type === "number" || type === "calculation") &&
+        formData.decimalPlaces !== undefined
+          ? parseInt(formData.decimalPlaces, 10)
+          : type === "number" || type === "calculation"
+          ? 0
+          : null,
+
       formula: type === "calculation" ? formData.formula || "" : undefined,
-      min: formData.min !== undefined ? parseFloat(formData.min) : null,
-      max: formData.max !== undefined ? parseFloat(formData.max) : null,
       bgColorInRange: formData.bgColorInRange || "#ffffff",
       bgColorBelowMin: formData.bgColorBelowMin || "#e3f2fd",
       bgColorAboveMax: formData.bgColorAboveMax || "#ffebee",
@@ -237,6 +255,9 @@ const FieldEditorModal = ({
       maxLengthMode: formData.maxLengthMode || "warning",
       maxLengthWarningBg: formData.maxLengthWarningBg || "#fff3cd",
     };
+
+    console.log("Saving field with decimalPlaces:", updatedField.decimalPlaces); // DEBUG
+    console.log("Field type:", type); // DEBUG
 
     onSave(updatedField);
     onClose();

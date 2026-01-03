@@ -9,10 +9,8 @@ const NumberField = ({
   decimalPlaces,
   height = 38,
   onHeightChange,
-  // VALIDATION SETTINGS - All optional
   min = null,
   max = null,
-  // FULLY CUSTOMIZABLE COLORS - All with defaults
   bgColorInRange = "#ffffff",
   bgColorBelowMin = "#e3f2fd",
   bgColorAboveMax = "#ffebee",
@@ -21,9 +19,11 @@ const NumberField = ({
   borderColorAboveMax = "#f44336",
 }) => {
   const [displayValue, setDisplayValue] = useState("");
+  const [rawValue, setRawValue] = useState(""); // Store raw user input
   const [isValid, setIsValid] = useState(true);
-  const [validationStatus, setValidationStatus] = useState("inRange"); // 'inRange', 'belowMin', 'aboveMax'
+  const [validationStatus, setValidationStatus] = useState("inRange");
   const inputRef = useRef(null);
+  const isEditing = useRef(false); // Track if user is currently typing
 
   const minFontSize = 8;
   const maxFontSize = 16;
@@ -31,10 +31,11 @@ const NumberField = ({
 
   const allowsDecimal = decimalPlaces !== undefined && decimalPlaces !== null;
 
-  // Sync displayValue with incoming value and validate
+  // Initialize displayValue from props
   useEffect(() => {
     if (value === undefined || value === null || value === "") {
       setDisplayValue("");
+      setRawValue("");
       setIsValid(true);
       setValidationStatus("inRange");
       return;
@@ -43,56 +44,27 @@ const NumberField = ({
     const num = typeof value === "number" ? value : parseFloat(value);
     if (isNaN(num)) {
       setDisplayValue("");
+      setRawValue("");
       setIsValid(false);
       setValidationStatus("inRange");
       return;
     }
 
-    // Format display value
-    let formatted;
-    if (allowsDecimal) {
-      formatted = num.toFixed(decimalPlaces);
-    } else {
-      formatted = Math.round(num).toString();
+    // Format for display (only when not editing)
+    if (!isEditing.current) {
+      let formatted;
+      if (allowsDecimal) {
+        formatted = num.toFixed(decimalPlaces);
+      } else {
+        formatted = Math.round(num).toString();
+      }
+      setDisplayValue(formatted);
+      setRawValue(formatted);
     }
-    setDisplayValue(formatted);
 
     // Validate min/max
     validateNumber(num);
   }, [value, decimalPlaces, allowsDecimal, min, max]);
-
-  // Validate number against min/max constraints
-  const validateNumber = (num) => {
-    let isValidValue = true;
-    let status = "inRange";
-
-    // Only validate if we have a valid number
-    if (num === null || isNaN(num)) {
-      setIsValid(true);
-      setValidationStatus("inRange");
-      return;
-    }
-
-    // Convert min/max to numbers if they're not null/undefined
-    const minNum = min != null ? parseFloat(min) : null;
-    const maxNum = max != null ? parseFloat(max) : null;
-
-    // Only validate if the conversion was successful
-    if (minNum !== null && !isNaN(minNum) && num < minNum) {
-      isValidValue = false;
-      status = "belowMin";
-    } else if (maxNum !== null && !isNaN(maxNum) && num > maxNum) {
-      isValidValue = false;
-      status = "aboveMax";
-    }
-
-    console.log(
-      `Validation: num=${num}, min=${minNum}, max=${maxNum}, isValid=${isValidValue}, status=${status}`
-    ); // Debug log
-
-    setIsValid(isValidValue);
-    setValidationStatus(status);
-  };
 
   // Auto-resize font
   useEffect(() => {
@@ -135,7 +107,32 @@ const NumberField = ({
     input.style.fontSize = `${fontSize}px`;
   }, [displayValue, label, height]);
 
-  // Determine background color based on validation status
+  // Validate number against min/max constraints
+  const validateNumber = (num) => {
+    let isValidValue = true;
+    let status = "inRange";
+
+    if (num === null || isNaN(num)) {
+      setIsValid(true);
+      setValidationStatus("inRange");
+      return;
+    }
+
+    const minNum = min != null ? parseFloat(min) : null;
+    const maxNum = max != null ? parseFloat(max) : null;
+
+    if (minNum !== null && !isNaN(minNum) && num < minNum) {
+      isValidValue = false;
+      status = "belowMin";
+    } else if (maxNum !== null && !isNaN(maxNum) && num > maxNum) {
+      isValidValue = false;
+      status = "aboveMax";
+    }
+
+    setIsValid(isValidValue);
+    setValidationStatus(status);
+  };
+
   const getBackgroundColor = () => {
     switch (validationStatus) {
       case "belowMin":
@@ -148,7 +145,6 @@ const NumberField = ({
     }
   };
 
-  // Determine border color based on validation status
   const getBorderColor = () => {
     switch (validationStatus) {
       case "belowMin":
@@ -161,7 +157,6 @@ const NumberField = ({
     }
   };
 
-  // Get validation status text for indicator
   const getValidationIndicator = () => {
     const minNum = min != null ? parseFloat(min) : null;
     const maxNum = max != null ? parseFloat(max) : null;
@@ -186,75 +181,121 @@ const NumberField = ({
 
   const handleChange = (e) => {
     const val = e.target.value;
+    isEditing.current = true; // User is typing
 
-    // Allow empty, minus sign, and digits
+    // Allow empty, minus sign, digits, and decimal point
     let regex;
     if (allowsDecimal) {
+      // Allow: empty, minus sign, digits, decimal point
       regex = /^-?\d*\.?\d*$/;
     } else {
       regex = /^-?\d*$/;
     }
 
     if (val === "" || val === "-" || regex.test(val)) {
+      // Store raw value as user types
+      setRawValue(val);
       setDisplayValue(val);
 
+      // Parse to number for validation
       const num =
-        val === "" || val === "-" || val === "." ? null : parseFloat(val);
+        val === "" || val === "-" || val === "." || val === "-."
+          ? null
+          : parseFloat(val);
 
-      if (val === "" || val === "-" || val === "." || isNaN(num)) {
+      if (
+        val === "" ||
+        val === "-" ||
+        val === "." ||
+        val === "-." ||
+        isNaN(num)
+      ) {
+        // Keep raw value as is, don't format yet
         onChange(name, null, "number", label);
         setIsValid(true);
         setValidationStatus("inRange");
       } else {
+        // Update the actual value but keep raw display
         onChange(name, num, "number", label);
-        // Validate immediately as user types
         validateNumber(num);
       }
     }
   };
 
+  const handleFocus = () => {
+    isEditing.current = true;
+    // When focused, show the raw value for editing
+    setDisplayValue(rawValue);
+  };
+
   const handleBlur = () => {
-    if (displayValue === "" || displayValue === "-" || displayValue === ".") {
+    isEditing.current = false; // User stopped editing
+
+    if (
+      rawValue === "" ||
+      rawValue === "-" ||
+      rawValue === "." ||
+      rawValue === "-."
+    ) {
       setDisplayValue("");
+      setRawValue("");
       onChange(name, null, "number", label);
       setIsValid(true);
       setValidationStatus("inRange");
       return;
     }
 
-    let num = parseFloat(displayValue);
+    let num = parseFloat(rawValue);
     if (isNaN(num)) {
       setDisplayValue("");
+      setRawValue("");
       onChange(name, null, "number", label);
       setIsValid(true);
       setValidationStatus("inRange");
       return;
     }
 
-    // Apply formatting
+    // Apply decimal formatting only on blur
     let finalValue;
-    if (allowsDecimal) {
-      const formatted = num.toFixed(decimalPlaces);
-      setDisplayValue(formatted);
-      finalValue = parseFloat(formatted);
+    let formattedDisplay;
+
+    if (allowsDecimal && decimalPlaces > 0) {
+      // Check if user already typed a decimal point
+      const hasDecimal = rawValue.includes(".");
+
+      if (hasDecimal) {
+        // User typed a decimal, format with exact decimal places
+        finalValue = parseFloat(num.toFixed(decimalPlaces));
+        formattedDisplay = finalValue.toFixed(decimalPlaces);
+      } else {
+        // User didn't type decimal, add .00
+        finalValue = parseFloat(num.toFixed(decimalPlaces));
+        formattedDisplay = finalValue.toFixed(decimalPlaces);
+      }
+    } else if (allowsDecimal && decimalPlaces === 0) {
+      // Integer only
+      finalValue = Math.round(num);
+      formattedDisplay = finalValue.toString();
     } else {
-      num = Math.round(num);
-      setDisplayValue(num.toString());
+      // No decimal places specified
       finalValue = num;
+      formattedDisplay = num.toString();
     }
 
-    // Send the final value
+    // Update display and raw value
+    setDisplayValue(formattedDisplay);
+    setRawValue(formattedDisplay);
+
+    // Send the final formatted value
     onChange(name, finalValue, "number", label);
 
     // Validate after formatting
     validateNumber(finalValue);
   };
 
-  // Get comprehensive tooltip text
   const getTooltipText = () => {
     let tooltip = label || "";
 
-    // Add validation info if min/max is set
     if (min !== null || max !== null) {
       tooltip += "\n\n";
       tooltip += "Validation Range:\n";
@@ -262,7 +303,6 @@ const NumberField = ({
       if (max !== null) tooltip += `• Max: ${max}\n`;
     }
 
-    // Add current validation status if invalid
     if (!isValid) {
       tooltip += "\n";
       if (validationStatus === "belowMin") {
@@ -272,18 +312,18 @@ const NumberField = ({
       }
     }
 
-    // Add decimal places info
     if (decimalPlaces !== undefined && decimalPlaces !== null) {
       tooltip += `\n\nDecimal Places: ${decimalPlaces}`;
       if (decimalPlaces === 0) {
         tooltip += " (Integer only)";
+      } else {
+        tooltip += ` (Will format to ${decimalPlaces} decimals on blur)`;
       }
     }
 
     return tooltip.trim();
   };
 
-  // Get input title for validation feedback
   const getInputTitle = () => {
     if (!isValid) {
       if (validationStatus === "belowMin") {
@@ -320,11 +360,11 @@ const NumberField = ({
         }}
         value={displayValue}
         onChange={handleChange}
+        onFocus={handleFocus}
         onBlur={handleBlur}
-        title={getTooltipText()} // Show comprehensive tooltip
+        title={getTooltipText()}
       />
 
-      {/* Validation indicator - shows only as small icon */}
       {indicator && (
         <div
           style={{
@@ -351,9 +391,6 @@ const NumberField = ({
           {indicator.symbol}
         </div>
       )}
-
-      {/* REMOVED: min/max labels and validation status text */}
-      {/* REMOVED: Color preview for current validation state */}
     </div>
   );
 };
