@@ -264,17 +264,20 @@ router.post("/templates", async (req, res) => {
       for (const [fieldId, config] of Object.entries(field_configurations)) {
         await client.query(
           `
-          INSERT INTO template_fields 
-          (template_id, field_name, field_type, label, decimal_places, options,
-           bg_color, text_color, exact_match_text, exact_match_bg_color,
-           min_length, min_length_mode, min_length_warning_bg,
-           max_length, max_length_mode, max_length_warning_bg,
-           multiline, auto_shrink_font,
-           min_value, max_value, bg_color_in_range, bg_color_below_min, 
-           bg_color_above_max, border_color_in_range, border_color_below_min, 
-           border_color_above_max, formula, position, instance_id, sheet_index, date_format, show_time_select, time_format, min_date, max_date)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35)
-          `,
+  INSERT INTO template_fields
+  (template_id, field_name, field_type, label, decimal_places, options,
+   bg_color, text_color, exact_match_text, exact_match_bg_color,
+   min_length, min_length_mode, min_length_warning_bg,
+   max_length, max_length_mode, max_length_warning_bg,
+   multiline, auto_shrink_font,
+   min_value, max_value, bg_color_in_range, bg_color_below_min,
+   bg_color_above_max, border_color_in_range, border_color_below_min,
+   border_color_above_max, formula, position, instance_id, sheet_index,
+   date_format, show_time_select, time_format, min_date, max_date,
+   allow_camera, allow_upload,
+   max_file_size)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38)
+  `,
           [
             templateId,
             config.field_name || fieldId,
@@ -311,6 +314,9 @@ router.post("/templates", async (req, res) => {
             config.timeFormat || "HH:mm",
             config.minDate || null,
             config.maxDate || null,
+            config.allowCamera || false,
+            config.allowUpload || false,
+            config.maxFileSize || null,
           ]
         );
       }
@@ -535,7 +541,9 @@ router.get("/templates/:id", async (req, res) => {
         min_value, max_value, bg_color_in_range, bg_color_below_min, 
         bg_color_above_max, border_color_in_range, border_color_below_min, 
         border_color_above_max, formula, position, instance_id, sheet_index,
-        date_format, show_time_select, time_format, min_date, max_date
+        date_format, show_time_select, time_format, min_date, max_date,
+        allow_camera, allow_upload, allow_drawing, allow_cropping,
+        max_file_size, aspect_ratio_width, aspect_ratio_height
       FROM template_fields 
       WHERE template_id = $1 
       ORDER BY id
@@ -639,6 +647,13 @@ router.get("/templates/:id", async (req, res) => {
         time_format: field.time_format,
         min_date: field.min_date,
         max_date: field.max_date,
+        allow_camera: field.allow_camera,
+        allow_upload: field.allow_upload,
+        allow_drawing: field.allow_drawing,
+        allow_cropping: field.allow_cropping,
+        max_file_size: field.max_file_size,
+        aspect_ratio_width: field.aspect_ratio_width,
+        aspect_ratio_height: field.aspect_ratio_height,
       };
 
       return processedField;

@@ -43,6 +43,10 @@ const FormField = ({
   timeFormat = "HH:mm",
   minDate,
   maxDate,
+  required = false,
+  allowCamera = true,
+  allowUpload = true,
+  maxFileSize = 5,
 }) => {
   const [height, setHeight] = useState(38);
   const minHeight = 28;
@@ -242,6 +246,10 @@ const FormField = ({
             timeFormat={timeFormat}
             minDate={minDate}
             maxDate={maxDate}
+            required={required}
+            allowCamera={allowCamera}
+            allowUpload={allowUpload}
+            maxFileSize={maxFileSize}
           />
           {fieldInfo.supportsHeight && (
             <div className="resize-handle">
@@ -295,6 +303,10 @@ const FormField = ({
               maxLength,
               maxLengthMode,
               maxLengthWarningBg,
+              required,
+              allowCamera,
+              allowUpload,
+              maxFileSize,
             })
           }
           title="Edit field configuration"

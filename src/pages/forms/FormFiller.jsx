@@ -8,6 +8,7 @@ import CalculationField from "../excel-to-form/excel-to-form-components/Calculat
 import NumberField from "../excel-to-form/excel-to-form-components/NumberField"; // Add this import
 import API_BASE_URL from "../../config/api";
 import DateField from "../excel-to-form/excel-to-form-components/DateField";
+import ImageField from "../excel-to-form/excel-to-form-components/ImageField";
 
 const FormFiller = () => {
   const { templateId } = useParams();
@@ -1112,6 +1113,25 @@ const FormFiller = () => {
           />
         );
         return renderFieldWithTooltip(numberField);
+
+      case "image":
+        const imageField = (
+          <ImageField
+            label={label}
+            name={fieldName}
+            value={value || ""}
+            onChange={(name, imageData) => handleFieldChange(name, imageData)}
+            height={150}
+            allowCamera={fieldConfig.allow_camera !== false}
+            allowUpload={fieldConfig.allow_upload !== false}
+            allowDrawing={fieldConfig.allow_drawing !== false}
+            allowCropping={fieldConfig.allow_cropping !== false}
+            maxFileSize={fieldConfig.max_file_size || 5}
+            aspectRatio={fieldConfig.aspect_ratio}
+            required={fieldConfig.required || false}
+          />
+        );
+        return renderFieldWithTooltip(imageField);
 
       case "date":
         const dateField = (

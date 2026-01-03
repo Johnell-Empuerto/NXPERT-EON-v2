@@ -934,6 +934,12 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
             minDate: updatedField.minDate || "",
             maxDate: updatedField.maxDate || "",
 
+            // CRITICAL: Add image field properties
+            required: updatedField.required || false,
+            allowCamera: updatedField.allowCamera !== false,
+            allowUpload: updatedField.allowUpload !== false,
+            maxFileSize: updatedField.maxFileSize || 5,
+
             // Make sure these are preserved too
             decimalPlaces: updatedField.decimalPlaces,
             decimal_places: updatedField.decimal_places,
@@ -1066,6 +1072,11 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
             timeFormat={config.timeFormat || "HH:mm"}
             minDate={config.minDate || ""}
             maxDate={config.maxDate || ""}
+            // ADD THESE IMAGE FIELD PROPS:
+            required={config.required || false}
+            allowCamera={config.allowCamera !== false}
+            allowUpload={config.allowUpload !== false}
+            maxFileSize={config.maxFileSize || 5}
             onEditField={() =>
               setEditingField({
                 ...config,

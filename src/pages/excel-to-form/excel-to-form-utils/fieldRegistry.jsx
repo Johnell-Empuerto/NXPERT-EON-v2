@@ -7,6 +7,7 @@ import DateField from "../excel-to-form-components/DateField";
 import CheckboxField from "../excel-to-form-components/CheckboxField";
 import DropdownField from "../excel-to-form-components/DropdownField";
 import CalculationField from "../excel-to-form-components/CalculationField"; // NEW
+import ImageField from "../excel-to-form-components/ImageField"; // Add this import
 
 export const fieldRegistry = {
   // fieldRegistry.js - Update the 'text' entry
@@ -243,6 +244,46 @@ export const fieldRegistry = {
         type: "text",
         label: "Maximum Date (YYYY-MM-DD)",
         placeholder: "Leave empty for no maximum",
+      },
+    ],
+  },
+  image: {
+    label: "Image",
+    component: ImageField,
+    defaultValue: "",
+    supportsHeight: true,
+    editorFields: [
+      {
+        name: "label",
+        type: "text",
+        label: "Field Label",
+        required: true,
+      },
+      {
+        name: "required",
+        type: "checkbox",
+        label: "Required Field",
+        defaultValue: false,
+      },
+      {
+        name: "allowCamera",
+        type: "checkbox",
+        label: "Allow Camera Capture",
+        defaultValue: true,
+      },
+      {
+        name: "allowUpload",
+        type: "checkbox",
+        label: "Allow File Upload",
+        defaultValue: true,
+      },
+      {
+        name: "maxFileSize",
+        type: "number",
+        label: "Maximum File Size (MB)",
+        min: 1,
+        max: 20,
+        defaultValue: 5,
       },
     ],
   },

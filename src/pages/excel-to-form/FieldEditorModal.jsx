@@ -200,6 +200,12 @@ const FieldEditorModal = ({
       minDate: formData.minDate || "",
       maxDate: formData.maxDate || "",
 
+      // Image field specific settings
+      required: !!formData.required,
+      allowCamera: formData.allowCamera !== false,
+      allowUpload: formData.allowUpload !== false,
+      maxFileSize: formData.maxFileSize || 5,
+
       // FIX: Make sure decimalPlaces is ALWAYS included for number fields
       decimalPlaces:
         (type === "number" || type === "calculation") &&
@@ -271,6 +277,22 @@ const FieldEditorModal = ({
 
     onSave(updatedField);
     onClose();
+  };
+
+  // Helper function to parse aspect ratio
+  const parseAspectRatio = (ratio) => {
+    switch (ratio) {
+      case "1:1":
+        return { width: 1, height: 1 };
+      case "4:3":
+        return { width: 4, height: 3 };
+      case "16:9":
+        return { width: 16, height: 9 };
+      case "3:2":
+        return { width: 3, height: 2 };
+      default:
+        return null; // free
+    }
   };
   // Updated renderEditorField function with real-time validation
   const renderEditorField = (fieldConfig) => {
