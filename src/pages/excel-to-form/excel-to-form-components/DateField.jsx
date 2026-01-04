@@ -13,7 +13,7 @@ const DateField = ({
   // NEW: Add format props
   dateFormat = "yyyy-MMMM-dd",
   showTimeSelect = false,
-  timeFormat = "HH:mm",
+  DatetimeFormat = "HH:mm",
   minDate,
   maxDate,
 }) => {
@@ -42,7 +42,7 @@ const DateField = ({
 
   // Combine date and time format if needed
   const displayFormat = showTimeSelect
-    ? `${dateFormat} ${timeFormat}`
+    ? `${dateFormat} ${DatetimeFormat}`
     : dateFormat;
 
   return (

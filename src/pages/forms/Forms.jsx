@@ -1091,15 +1091,7 @@ const Forms = () => {
                       {formToDelete.folder_name || "Root"}
                     </span>
                   </div>
-                  <div className="info-row">
-                    <span className="info-label">Fields:</span>
-                    <span className="info-value">
-                      {formToDelete.fields_count ||
-                        formToDelete.fields?.length ||
-                        0}{" "}
-                      fields
-                    </span>
-                  </div>
+
                   {formToDelete.description && (
                     <div className="info-row">
                       <span className="info-label">Description:</span>

@@ -193,10 +193,17 @@ const FieldEditorModal = ({
       multiline: !!formData.multiline,
       autoShrinkFont: formData.autoShrinkFont !== false,
 
+      // Time field specific settings
+      timeFormat: formData.timeFormat || "HH:mm",
+      allowSeconds: !!formData.allowSeconds,
+      minTime: formData.minTime || "",
+      maxTime: formData.maxTime || "",
+      required: !!formData.required,
+
       // Date field specific settings
       dateFormat: formData.dateFormat || "yyyy-MMMM-dd",
       showTimeSelect: !!formData.showTimeSelect,
-      timeFormat: formData.timeFormat || "HH:mm",
+      DatetimeFormat: formData.DatetimeFormat || "HH:mm",
       minDate: formData.minDate || "",
       maxDate: formData.maxDate || "",
 

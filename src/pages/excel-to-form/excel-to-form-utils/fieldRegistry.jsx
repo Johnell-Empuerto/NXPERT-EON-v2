@@ -8,6 +8,7 @@ import CheckboxField from "../excel-to-form-components/CheckboxField";
 import DropdownField from "../excel-to-form-components/DropdownField";
 import CalculationField from "../excel-to-form-components/CalculationField"; // NEW
 import ImageField from "../excel-to-form-components/ImageField"; // Add this import
+import TimeField from "../excel-to-form-components/TimeField"; // Add this import
 
 export const fieldRegistry = {
   // fieldRegistry.js - Update the 'text' entry
@@ -103,6 +104,59 @@ export const fieldRegistry = {
         label: "Background when above maximum",
         defaultValue: "#fff3cd",
       },
+    ],
+  },
+  time: {
+    label: "Time",
+    component: TimeField,
+    defaultValue: "",
+    supportsHeight: true,
+    editorFields: [
+      {
+        name: "label",
+        type: "text",
+        label: "Field Label",
+        required: true,
+      },
+      {
+        name: "timeFormat",
+        type: "select",
+        label: "Time Format",
+        options: [
+          { value: "HH:mm", label: "24-hour (14:30)" },
+          { value: "hh:mm aa", label: "12-hour (02:30 PM)" },
+        ],
+        defaultValue: "HH:mm",
+      },
+      {
+        name: "allowSeconds",
+        type: "checkbox",
+        label: "Include Seconds",
+        defaultValue: false,
+      },
+      {
+        name: "minTime",
+        type: "text",
+        label: "Earliest Time (HH:mm)",
+        placeholder: "e.g., 09:00 or 09:00:00",
+        pattern: "^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$",
+      },
+      {
+        name: "maxTime",
+        type: "text",
+        label: "Latest Time (HH:mm)",
+        placeholder: "e.g., 17:00 or 17:00:00",
+        pattern: "^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$",
+      },
+      {
+        name: "required",
+        type: "checkbox",
+        label: "Required Field",
+        defaultValue: false,
+      },
+      // REMOVED: Read Only / Disabled checkbox
+      // REMOVED: Background Color field
+      // REMOVED: Text Color field
     ],
   },
   number: {

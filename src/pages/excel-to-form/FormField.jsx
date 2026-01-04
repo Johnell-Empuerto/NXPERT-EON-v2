@@ -40,13 +40,18 @@ const FormField = ({
   maxLengthWarningBg = "#fff3cd",
   dateFormat = "yyyy-MMMM-dd",
   showTimeSelect = false,
-  timeFormat = "HH:mm",
+  DatetimeFormat = "HH:mm",
   minDate,
   maxDate,
   required = false,
   allowCamera = true,
   allowUpload = true,
   maxFileSize = 5,
+  timeFormat = "HH:mm",
+  minTime = "",
+  maxTime = "",
+  allowSeconds = false,
+  disabled = false,
 }) => {
   const [height, setHeight] = useState(38);
   const minHeight = 28;
@@ -70,14 +75,36 @@ const FormField = ({
       if (dateFormat) {
         tips.push(`<strong>Format:</strong> ${dateFormat}`);
       }
-      if (showTimeSelect && timeFormat) {
-        tips.push(`<strong>Time Format:</strong> ${timeFormat}`);
+      if (showTimeSelect && DatetimeFormat) {
+        tips.push(`<strong>Time Format:</strong> ${DatetimeFormat}`);
       }
       if (minDate) {
         tips.push(`<strong>Earliest:</strong> ${minDate}`);
       }
       if (maxDate) {
         tips.push(`<strong>Latest:</strong> ${maxDate}`);
+      }
+    }
+
+    // Time field specific info
+    if (type === "time") {
+      if (timeFormat) {
+        tips.push(`<strong>Time Format:</strong> ${timeFormat}`);
+      }
+      if (allowSeconds) {
+        tips.push(`<strong>Includes Seconds</strong>`);
+      }
+      if (minTime) {
+        tips.push(`<strong>Earliest:</strong> ${minTime}`);
+      }
+      if (maxTime) {
+        tips.push(`<strong>Latest:</strong> ${maxTime}`);
+      }
+      if (required) {
+        tips.push(`<strong>Required Field</strong>`);
+      }
+      if (disabled) {
+        tips.push(`<strong>Read Only</strong>`);
       }
     }
 
@@ -243,13 +270,18 @@ const FormField = ({
             maxLengthWarningBg={maxLengthWarningBg}
             dateFormat={dateFormat}
             showTimeSelect={showTimeSelect}
-            timeFormat={timeFormat}
+            DatetimeFormat={DatetimeFormat}
             minDate={minDate}
             maxDate={maxDate}
             required={required}
             allowCamera={allowCamera}
             allowUpload={allowUpload}
             maxFileSize={maxFileSize}
+            timeFormat={timeFormat}
+            minTime={minTime}
+            maxTime={maxTime}
+            allowSeconds={allowSeconds}
+            disabled={disabled}
           />
           {fieldInfo.supportsHeight && (
             <div className="resize-handle">
@@ -307,6 +339,12 @@ const FormField = ({
               allowCamera,
               allowUpload,
               maxFileSize,
+              dateFormat,
+              timeFormat,
+              minTime,
+              maxTime,
+              allowSeconds,
+              disabled,
             })
           }
           title="Edit field configuration"

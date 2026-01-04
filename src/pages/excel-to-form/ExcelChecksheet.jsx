@@ -927,10 +927,20 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
             instanceId: instanceId,
             sheetIndex: sheetIndex,
 
+            // CRITICAL: Add time field properties
+            timeFormat: updatedField.timeFormat || "HH:mm",
+            allowSeconds: updatedField.allowSeconds || false,
+            minTime: updatedField.minTime || "",
+            maxTime: updatedField.maxTime || "",
+
+            // COMMON PROPERTIES
+            required: updatedField.required || false,
+            disabled: updatedField.disabled || false,
+
             // Ensure date format properties are saved
             dateFormat: updatedField.dateFormat || "yyyy-MMMM-dd",
             showTimeSelect: updatedField.showTimeSelect || false,
-            timeFormat: updatedField.timeFormat || "HH:mm",
+            DatetimeFormat: updatedField.DatetimeFormat || "HH:mm",
             minDate: updatedField.minDate || "",
             maxDate: updatedField.maxDate || "",
 
@@ -1069,7 +1079,7 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
             maxLengthWarningBg={config.maxLengthWarningBg}
             dateFormat={config.dateFormat || "yyyy-MMMM-dd"}
             showTimeSelect={config.showTimeSelect || false}
-            timeFormat={config.timeFormat || "HH:mm"}
+            DatetimeFormat={config.DatetimeFormat || "HH:mm"}
             minDate={config.minDate || ""}
             maxDate={config.maxDate || ""}
             // ADD THESE IMAGE FIELD PROPS:
@@ -1077,6 +1087,12 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
             allowCamera={config.allowCamera !== false}
             allowUpload={config.allowUpload !== false}
             maxFileSize={config.maxFileSize || 5}
+            // TIME FIELD PROPS
+            timeFormat={config.timeFormat || "HH:mm"}
+            allowSeconds={config.allowSeconds || false}
+            minTime={config.minTime || ""}
+            maxTime={config.maxTime || ""}
+            disabled={config.disabled || false}
             onEditField={() =>
               setEditingField({
                 ...config,
@@ -1256,9 +1272,15 @@ const ExcelChecksheet = ({ initialHtml = "", onSubmit }) => {
           field_name: config.field_name || key,
           dateFormat: config.dateFormat || "yyyy-MMMM-dd",
           showTimeSelect: config.showTimeSelect || false,
-          timeFormat: config.timeFormat || "HH:mm",
+          DatetimeFormat: config.DatetimeFormat || "HH:mm",
           minDate: config.minDate || "",
           maxDate: config.maxDate || "",
+
+          // TIME FIELD SPECIFIC
+          timeFormat: config.timeFormat || "HH:mm",
+          allowSeconds: config.allowSeconds || false,
+          minTime: config.minTime || "",
+          maxTime: config.maxTime || "",
 
           // FIX: Make sure decimalPlaces is included
           decimalPlaces:

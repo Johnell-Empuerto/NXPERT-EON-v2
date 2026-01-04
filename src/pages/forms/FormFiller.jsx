@@ -9,6 +9,7 @@ import NumberField from "../excel-to-form/excel-to-form-components/NumberField";
 import API_BASE_URL from "../../config/api";
 import DateField from "../excel-to-form/excel-to-form-components/DateField";
 import ImageField from "../excel-to-form/excel-to-form-components/ImageField";
+import TimeField from "../excel-to-form/excel-to-form-components/TimeField";
 
 const FormFiller = () => {
   const { templateId } = useParams();
@@ -888,9 +889,15 @@ const FormFiller = () => {
       // NEW: Extract date format props from database
       date_format: dateFormat = "yyyy-MMMM-dd",
       show_time_select: showTimeSelect = false,
-      time_format: timeFormat = "HH:mm",
+      DatetimeFormat: DatetimeFormat = "HH:mm",
       min_date: minDate,
       max_date: maxDate,
+      // TIME FIELD PROPS - ADD THESE
+      time_format: timeFormat = "HH:mm",
+      allow_seconds: allowSeconds = false,
+      min_time: minTime = "",
+      max_time: maxTime = "",
+      disabled: fieldDisabled = false,
     } = fieldConfig;
 
     const getBackgroundColor = (val) => {
@@ -991,6 +998,8 @@ const FormFiller = () => {
         padding: "8px 10px",
         boxSizing: "border-box",
       },
+      disabled: fieldDisabled, // Add this
+      required: required, // Add this if you want HTML5 validation
     };
 
     // Create enhanced tooltip content based on field configuration
@@ -1047,6 +1056,41 @@ const FormFiller = () => {
         }
         if (optionList.length > 0) {
           parts.push(`<strong>Options:</strong> ${optionList.join(", ")}`);
+        }
+      }
+
+      // TIME FIELD SPECIFIC INFO - ADD THIS
+      if (type === "time") {
+        if (timeFormat) {
+          parts.push(`<strong>Time Format:</strong> ${timeFormat}`);
+        }
+        if (allowSeconds) {
+          parts.push(`<strong>Includes Seconds</strong>`);
+        }
+        if (minTime) {
+          parts.push(`<strong>Earliest:</strong> ${minTime}`);
+        }
+        if (maxTime) {
+          parts.push(`<strong>Latest:</strong> ${maxTime}`);
+        }
+      }
+
+      // DATE FIELD SPECIFIC INFO - ENSURE THIS EXISTS
+      if (type === "date") {
+        if (dateFormat) {
+          parts.push(`<strong>Date Format:</strong> ${dateFormat}`);
+        }
+        if (showTimeSelect) {
+          parts.push(`<strong>Includes Time</strong>`);
+          if (DatetimeFormat) {
+            parts.push(`<strong>Time Format:</strong> ${DatetimeFormat}`);
+          }
+        }
+        if (minDate) {
+          parts.push(`<strong>Earliest:</strong> ${minDate}`);
+        }
+        if (maxDate) {
+          parts.push(`<strong>Latest:</strong> ${maxDate}`);
         }
       }
 
@@ -1133,6 +1177,25 @@ const FormFiller = () => {
         );
         return renderFieldWithTooltip(imageField);
 
+      case "time":
+        const timeField = (
+          <TimeField
+            label={label}
+            name={fieldName}
+            value={value || ""}
+            onChange={(name, timeString) => handleFieldChange(name, timeString)}
+            height={38}
+            // Pass time format properties from database
+            timeFormat={fieldConfig.time_format || "HH:mm"}
+            allowSeconds={fieldConfig.allow_seconds || false}
+            minTime={fieldConfig.min_time || ""}
+            maxTime={fieldConfig.max_time || ""}
+            required={fieldConfig.required || false}
+            disabled={fieldConfig.disabled || false}
+          />
+        );
+        return renderFieldWithTooltip(timeField);
+
       case "date":
         const dateField = (
           <DateField
@@ -1144,7 +1207,7 @@ const FormFiller = () => {
             // PASS THE DATE FORMAT PROPS FROM DATABASE
             dateFormat={dateFormat || "yyyy-MMMM-dd"}
             showTimeSelect={showTimeSelect || false}
-            timeFormat={timeFormat || "HH:mm"}
+            DatetimeFormat={DatetimeFormat || "HH:mm"}
             minDate={minDate || ""}
             maxDate={maxDate || ""}
           />
