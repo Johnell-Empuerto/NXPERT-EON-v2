@@ -688,25 +688,6 @@ router.get("/templates/:id", async (req, res) => {
 });
 
 // ==============================
-// GET ALL TEMPLATES (for listing)
-// ==============================
-router.get("/templates", async (req, res) => {
-  try {
-    const templatesRes = await pool.query(
-      "SELECT id, name, table_name, created_at FROM checksheet_templates ORDER BY created_at DESC"
-    );
-
-    res.json({
-      success: true,
-      templates: templatesRes.rows,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "Server error" });
-  }
-});
-
-// ==============================
 // SUBMIT DATA TO DYNAMIC TABLE
 // ==============================
 router.post("/submissions", async (req, res) => {
@@ -900,6 +881,362 @@ router.delete("/templates/:id", async (req, res) => {
     });
   } finally {
     client.release();
+  }
+});
+
+// ==============================
+// FOLDER MANAGEMENT ENDPOINTS
+// ==============================
+
+// Create folder
+router.post("/folders", async (req, res) => {
+  const { name, parent_id, user_id } = req.body;
+
+  if (!name || name.trim() === "") {
+    return res.status(400).json({
+      success: false,
+      message: "Folder name is required",
+    });
+  }
+
+  try {
+    // Check if folder name already exists in same parent
+    const existingRes = await pool.query(
+      `SELECT id FROM form_folders 
+       WHERE name = $1 AND parent_id = $2 AND user_id = $3`,
+      [name.trim(), parent_id || null, user_id || null]
+    );
+
+    if (existingRes.rows.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Folder with this name already exists in this location",
+      });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO form_folders (name, parent_id, user_id) 
+       VALUES ($1, $2, $3) 
+       RETURNING id, name, parent_id, created_at`,
+      [name.trim(), parent_id || null, user_id || null]
+    );
+
+    res.json({
+      success: true,
+      folder: result.rows[0],
+      message: "Folder created successfully",
+    });
+  } catch (err) {
+    console.error("Create folder error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to create folder",
+    });
+  }
+});
+
+// Get all folders (tree structure)
+router.get("/folders", async (req, res) => {
+  try {
+    const foldersRes = await pool.query(
+      `SELECT id, name, parent_id, created_at, updated_at 
+       FROM form_folders 
+       ORDER BY name`
+    );
+
+    // Build tree structure
+    const buildTree = (parentId = null) => {
+      return foldersRes.rows
+        .filter((folder) => folder.parent_id === parentId)
+        .map((folder) => ({
+          ...folder,
+          children: buildTree(folder.id),
+          itemCount: 0, // Will be populated later
+        }));
+    };
+
+    const tree = buildTree();
+
+    // **CRITICAL FIX: Get ALL form counts for each folder**
+    const countsRes = await pool.query(
+      `SELECT 
+        COALESCE(folder_id, -1) as folder_id, 
+        COUNT(*) as count 
+       FROM checksheet_templates 
+       GROUP BY folder_id`
+    );
+
+    const countsMap = {};
+    countsRes.rows.forEach((row) => {
+      // Use null for root forms (folder_id is null)
+      const folderId = row.folder_id === -1 ? null : row.folder_id;
+      countsMap[folderId] = parseInt(row.count);
+    });
+
+    console.log("=== DEBUG FOLDER COUNTS ===");
+    console.log("Counts map:", countsMap);
+
+    // Helper function to update counts recursively
+    const updateCounts = (folders) => {
+      return folders.map((folder) => {
+        // Start with direct forms in this folder
+        let total = countsMap[folder.id] || 0;
+
+        console.log(
+          `Folder ${folder.id} (${folder.name}): direct count = ${total}`
+        );
+
+        if (folder.children && folder.children.length > 0) {
+          const updatedChildren = updateCounts(folder.children);
+          const childrenCount = updatedChildren.reduce(
+            (sum, child) => sum + child.itemCount,
+            0
+          );
+          total += childrenCount;
+
+          return {
+            ...folder,
+            children: updatedChildren,
+            itemCount: total,
+          };
+        }
+
+        return {
+          ...folder,
+          itemCount: total,
+        };
+      });
+    };
+
+    const treeWithCounts = updateCounts(tree);
+
+    console.log("=== FINAL FOLDER TREE ===");
+    console.log(JSON.stringify(treeWithCounts, null, 2));
+
+    res.json({
+      success: true,
+      folders: treeWithCounts,
+    });
+  } catch (err) {
+    console.error("Get folders error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get folders",
+      error: err.message,
+    });
+  }
+});
+
+// Update folder
+router.put("/folders/:id", async (req, res) => {
+  const { id } = req.params;
+  const { name } = req.body;
+
+  if (!name || name.trim() === "") {
+    return res.status(400).json({
+      success: false,
+      message: "Folder name is required",
+    });
+  }
+
+  try {
+    // Check if folder exists
+    const folderRes = await pool.query(
+      "SELECT id FROM form_folders WHERE id = $1",
+      [id]
+    );
+
+    if (folderRes.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Folder not found",
+      });
+    }
+
+    // Check for duplicate name in same parent
+    const parentRes = await pool.query(
+      "SELECT parent_id FROM form_folders WHERE id = $1",
+      [id]
+    );
+
+    const duplicateRes = await pool.query(
+      `SELECT id FROM form_folders 
+       WHERE name = $1 AND parent_id = $2 AND id != $3`,
+      [name.trim(), parentRes.rows[0].parent_id, id]
+    );
+
+    if (duplicateRes.rows.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Folder with this name already exists in this location",
+      });
+    }
+
+    const result = await pool.query(
+      `UPDATE form_folders 
+       SET name = $1, updated_at = NOW() 
+       WHERE id = $2 
+       RETURNING id, name, parent_id, updated_at`,
+      [name.trim(), id]
+    );
+
+    res.json({
+      success: true,
+      folder: result.rows[0],
+      message: "Folder updated successfully",
+    });
+  } catch (err) {
+    console.error("Update folder error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update folder",
+    });
+  }
+});
+
+// Delete folder
+router.delete("/folders/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Check if folder exists
+    const folderRes = await client.query(
+      "SELECT id FROM form_folders WHERE id = $1",
+      [id]
+    );
+
+    if (folderRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        success: false,
+        message: "Folder not found",
+      });
+    }
+
+    // Check if folder has forms
+    const formsRes = await client.query(
+      "SELECT COUNT(*) as count FROM checksheet_templates WHERE folder_id = $1",
+      [id]
+    );
+
+    if (parseInt(formsRes.rows[0].count) > 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        message:
+          "Cannot delete folder that contains forms. Move or delete the forms first.",
+      });
+    }
+
+    // Delete folder (cascade will handle subfolders)
+    await client.query("DELETE FROM form_folders WHERE id = $1", [id]);
+
+    await client.query("COMMIT");
+
+    res.json({
+      success: true,
+      message: "Folder deleted successfully",
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Delete folder error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete folder",
+    });
+  } finally {
+    client.release();
+  }
+});
+
+// Move forms to folder (bulk operation)
+router.post("/forms/move", async (req, res) => {
+  const { formIds, folderId } = req.body;
+
+  if (!Array.isArray(formIds) || formIds.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "No forms selected",
+    });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Validate folder if provided (null means move to root)
+    if (folderId !== null && folderId !== undefined) {
+      const folderRes = await client.query(
+        "SELECT id FROM form_folders WHERE id = $1",
+        [folderId]
+      );
+
+      if (folderRes.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({
+          success: false,
+          message: "Folder not found",
+        });
+      }
+    }
+
+    // Update forms
+    const result = await client.query(
+      `UPDATE checksheet_templates 
+       SET folder_id = $1 
+       WHERE id = ANY($2) 
+       RETURNING id, name, folder_id`,
+      [folderId || null, formIds]
+    );
+
+    await client.query("COMMIT");
+
+    res.json({
+      success: true,
+      movedCount: result.rowCount,
+      message: `${result.rowCount} form(s) moved successfully`,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Move forms error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to move forms",
+    });
+  } finally {
+    client.release();
+  }
+});
+
+// Update GET templates endpoint to include folder info
+router.get("/templates", async (req, res) => {
+  try {
+    const templatesRes = await pool.query(
+      `SELECT 
+        ct.id, 
+        ct.name, 
+        ct.table_name, 
+        ct.created_at,
+        ct.folder_id,
+        ff.name as folder_name
+       FROM checksheet_templates ct
+       LEFT JOIN form_folders ff ON ct.folder_id = ff.id
+       ORDER BY ct.created_at DESC`
+    );
+
+    console.log("=== DEBUG: TEMPLATES API RESPONSE ===");
+    console.log("Total templates:", templatesRes.rows.length);
+
+    res.json({
+      success: true,
+      templates: templatesRes.rows,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
